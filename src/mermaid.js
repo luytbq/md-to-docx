@@ -32,6 +32,7 @@ function findChrome() {
 // lazy-initialized state
 let mmdc = null;
 let puppeteerCfgPath = null;
+let hasConvert = null;
 
 function ensureInit() {
   if (mmdc !== null) return;
@@ -39,6 +40,15 @@ function ensureInit() {
   const chromeExe = findChrome();
   puppeteerCfgPath = `/tmp/_mmdoc_puppeteer_${process.pid}.json`;
   writeFileSync(puppeteerCfgPath, JSON.stringify({ executablePath: chromeExe }));
+}
+
+// Is ImageMagick `convert` available? (needed for tall-diagram slicing) — memoized.
+function hasImageMagick() {
+  if (hasConvert === null) {
+    try { execSync('command -v convert', { stdio: 'pipe' }); hasConvert = true; }
+    catch (_) { hasConvert = false; }
+  }
+  return hasConvert;
 }
 
 export function pngDims(buf) {
@@ -58,9 +68,11 @@ export function pngDims(buf) {
 
 /**
  * Render mermaid code to PNG buffer.
+ * @param {string} code  - mermaid source
+ * @param {number} [scale=2] - mmdc -s render scale (PNG resolution multiplier)
  * Returns { buffer } on success, { warning } on failure.
  */
-export function renderMermaid(code) {
+export function renderMermaid(code, scale = 2) {
   ensureInit();
   if (!mmdc) {
     return { warning: 'mmdc not found — install with: npm install -g @mermaid-js/mermaid-cli' };
@@ -70,7 +82,7 @@ export function renderMermaid(code) {
   const outF = `/tmp/_mermaid_${id}.png`;
   writeFileSync(inF, code);
   try {
-    execSync(`"${mmdc}" -i "${inF}" -o "${outF}" --puppeteerConfigFile "${puppeteerCfgPath}" -s 2 --backgroundColor white`, { stdio: 'pipe' });
+    execSync(`"${mmdc}" -i "${inF}" -o "${outF}" --puppeteerConfigFile "${puppeteerCfgPath}" -s ${scale} --backgroundColor white`, { stdio: 'pipe' });
     return { buffer: readFileSync(outF) };
   } catch (e) {
     const raw = (e.stderr?.toString() || e.message || '').trim();
@@ -81,5 +93,66 @@ export function renderMermaid(code) {
   } finally {
     try { unlinkSync(inF); } catch (_) {}
     try { unlinkSync(outF); } catch (_) {}
+  }
+}
+
+/**
+ * Slice a tall PNG into bands (each ≤ bandSrcH source px) so each fits one page.
+ * Snaps cut points to the nearest white-background row to avoid cutting through nodes/text.
+ * @returns {Array<{buf: Buffer, srcH: number}> | null} bands, or null if unavailable/not tall/failed.
+ */
+export function sliceTall(imgBuf, w, h, bandSrcH) {
+  if (!hasImageMagick() || bandSrcH < 1 || h <= bandSrcH) return null;
+  const id = Math.random().toString(36).slice(2);
+  const tmp = `/tmp/_mmslice_${id}.png`;
+  const sliceFiles = [];
+  try {
+    writeFileSync(tmp, imgBuf);
+    // Brightness profile per row: collapse each row to 1 px (255 = white background).
+    let prof = null;
+    try {
+      prof = execSync(`convert "${tmp}" -colorspace Gray -resize 1x${h}! -depth 8 gray:-`,
+                      { stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+      if (prof.length !== h) prof = null;
+    } catch (_) { prof = null; }
+
+    const nSlices = Math.ceil(h / bandSrcH);
+    const win = Math.max(1, Math.round(bandSrcH * 0.15));
+    // Compute cut points 0 = cuts[0] < cuts[1] < ... < cuts[n] = h
+    const cuts = [0];
+    for (let k = 1; k < nSlices; k++) {
+      const ideal = Math.min(h, k * bandSrcH);
+      let cut = ideal;
+      if (prof) {
+        // Snap UPWARD only (≤ ideal): ideal is already the max that fits one page;
+        // cutting later would make the band taller than a page.
+        const lo = Math.max(cuts[cuts.length - 1] + 1, ideal - win);
+        let best = -1, bestVal = -1;
+        for (let y = lo; y <= ideal; y++) {
+          const v = prof[y];
+          if (v > bestVal || (v === bestVal && y > best)) { bestVal = v; best = y; }  // tie → closest to ideal
+        }
+        if (best >= 0) cut = best;
+      }
+      if (cut <= cuts[cuts.length - 1]) cut = Math.min(h, cuts[cuts.length - 1] + bandSrcH);
+      cuts.push(cut);
+    }
+    cuts.push(h);
+
+    const bands = [];
+    for (let i = 0; i < cuts.length - 1; i++) {
+      const y0 = cuts[i], bandH = cuts[i + 1] - cuts[i];
+      if (bandH <= 0) continue;
+      const out = `/tmp/_mmslice_${id}_${i}.png`;
+      sliceFiles.push(out);
+      execSync(`convert "${tmp}" -crop ${w}x${bandH}+0+${y0} +repage "${out}"`, { stdio: 'pipe' });
+      bands.push({ buf: readFileSync(out), srcH: bandH });
+    }
+    return bands.length ? bands : null;
+  } catch (_) {
+    return null;
+  } finally {
+    try { unlinkSync(tmp); } catch (_) {}
+    for (const f of sliceFiles) { try { unlinkSync(f); } catch (_) {} }
   }
 }

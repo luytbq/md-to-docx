@@ -48,6 +48,35 @@ test('parseMarkdown: bullet list with indent', () => {
   assert.equal(blocks[1].type, 'bullet'); assert.equal(blocks[1].indent, 1);
 });
 
+test('parseMarkdown: bullet nesting with 4-space scheme', () => {
+  const blocks = parseMarkdown('- a\n    - b\n        - c');
+  assert.deepEqual(blocks.map(b => b.indent), [0, 1, 2]);
+});
+
+test('parseMarkdown: bullet nesting caps at level 2', () => {
+  const blocks = parseMarkdown('- a\n  - b\n    - c\n      - d');
+  assert.deepEqual(blocks.map(b => b.indent), [0, 1, 2, 2]);
+});
+
+test('parseMarkdown: bullet de-indent pops back to outer level', () => {
+  const blocks = parseMarkdown('- a\n  - b\n- c');
+  assert.deepEqual(blocks.map(b => b.indent), [0, 1, 0]);
+});
+
+test('parseMarkdown: lazy continuation merges into previous list item', () => {
+  const blocks = parseMarkdown('- first line\ncontinued here');
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].type, 'bullet');
+  assert.equal(blocks[0].text, 'first line continued here');
+});
+
+test('parseMarkdown: lazy continuation does not cross a blank line', () => {
+  const blocks = parseMarkdown('- item\n\nnow a paragraph');
+  assert.equal(blocks[0].type, 'bullet');
+  assert.equal(blocks[0].text, 'item');
+  assert.equal(blocks[2].type, 'paragraph');
+});
+
 test('parseMarkdown: numbered list', () => {
   const blocks = parseMarkdown('1. first\n2. second');
   assert.equal(blocks[0].type, 'numbered');
@@ -70,6 +99,13 @@ test('parseMarkdown: page break', () => {
   // page break is via inline style text
   const b2 = parseMarkdown('page-break-after: always');
   assert.equal(b2[0].type, 'pagebreak');
+});
+
+test('parseMarkdown: page break after a list item is not swallowed by lazy continuation', () => {
+  const blocks = parseMarkdown('- item\npage-break-after: always');
+  assert.equal(blocks[0].type, 'bullet');
+  assert.equal(blocks[0].text, 'item');
+  assert.equal(blocks[1].type, 'pagebreak');
 });
 
 test('parseMarkdown: image basic', () => {

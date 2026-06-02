@@ -65,6 +65,30 @@ test('buildConfig: YAML wins over overrides', () => {
   assert.equal(cfg.body.size, 14);
 });
 
+test('buildConfig: mermaid defaults', () => {
+  const cfg = buildConfig('', {});
+  assert.equal(cfg.mermaid.renderScale, 2);
+  assert.equal(cfg.mermaid.fontSize, 9.5);
+  assert.equal(cfg.mermaid.minFontPt, 7.5);
+  assert.equal(cfg.mermaid.fitPage, true);
+});
+
+test('buildConfig: mermaid YAML override', () => {
+  const cfg = buildConfig('mermaid:\n  font_size: 11', {});
+  assert.equal(cfg.mermaid.fontSize, 11);
+  assert.equal(cfg.mermaid.renderScale, 2);
+});
+
+test('buildConfig: image caption default true', () => {
+  const cfg = buildConfig('', {});
+  assert.equal(cfg.image.caption, true);
+});
+
+test('buildConfig: image caption can be disabled', () => {
+  const cfg = buildConfig('image:\n  caption: false', {});
+  assert.equal(cfg.image.caption, false);
+});
+
 test('parseFrontmatter: with YAML frontmatter', () => {
   const src = '---\ntitle: Test\n---\n# Hello';
   const { yamlRaw, body } = parseFrontmatter(src);

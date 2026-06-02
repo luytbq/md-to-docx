@@ -2,11 +2,13 @@ export function parseMarkdown(md) {
   const lines = md.split('\n');
   const blocks = [];
   let i = 0;
+  let listIndentStack = [];  // stack of seen leading-space widths → bullet nesting levels
   while (i < lines.length) {
     const line = lines[i];
 
     // fenced code block
     if (/^```/.test(line)) {
+      listIndentStack = [];
       const lang = line.slice(3).trim();
       const code = [];
       i++;
@@ -18,6 +20,7 @@ export function parseMarkdown(md) {
 
     // table
     if (/^\|/.test(line) && i + 1 < lines.length && /^\|[\s\-:|]+\|/.test(lines[i + 1])) {
+      listIndentStack = [];
       const splitCells = s => s.replace(/\\\|/g, '\x00').split('|').map(c => c.replace(/\x00/g, '|').trim());
       const headers = splitCells(line).slice(1, -1);
       const sepCells = splitCells(lines[i + 1]).slice(1, -1);
@@ -34,14 +37,20 @@ export function parseMarkdown(md) {
 
     // heading
     const hm = line.match(/^(#{1,6})\s+(.*)/);
-    if (hm) { blocks.push({ type: 'heading', level: hm[1].length, text: hm[2].trim() }); i++; continue; }
+    if (hm) { listIndentStack = []; blocks.push({ type: 'heading', level: hm[1].length, text: hm[2].trim() }); i++; continue; }
 
     // hr
-    if (/^(\*{3,}|-{3,}|_{3,})$/.test(line.trim())) { blocks.push({ type: 'hr' }); i++; continue; }
+    if (/^(\*{3,}|-{3,}|_{3,})$/.test(line.trim())) { listIndentStack = []; blocks.push({ type: 'hr' }); i++; continue; }
 
-    // bullet
+    // bullet — derive nesting level from relative indentation (handles 2- or 4-space schemes)
     const bm = line.match(/^(\s*)[-*+]\s+(.*)/);
-    if (bm) { blocks.push({ type: 'bullet', text: bm[2].trim(), indent: Math.min(Math.floor(bm[1].length / 2), 2) }); i++; continue; }
+    if (bm) {
+      const spaces = bm[1].length;
+      while (listIndentStack.length && listIndentStack[listIndentStack.length - 1] > spaces) listIndentStack.pop();
+      if (!listIndentStack.length || listIndentStack[listIndentStack.length - 1] < spaces) listIndentStack.push(spaces);
+      blocks.push({ type: 'bullet', text: bm[2].trim(), indent: Math.min(listIndentStack.length - 1, 2) });
+      i++; continue;
+    }
 
     // numbered
     const nm = line.match(/^(\s*)\d+\.\s+(.*)/);
@@ -62,6 +71,7 @@ export function parseMarkdown(md) {
     // image  ![alt](path =WxH)  or  ![alt](path){width=W height=H}
     const imgm = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)(\{([^}]*)\})?$/);
     if (imgm) {
+      listIndentStack = [];
       const sizeM = imgm[2].match(/^(.*?)\s+=(\d*)x(\d*)$/);
       const src = sizeM ? sizeM[1].trim() : imgm[2].trim();
       let forceW = sizeM && sizeM[2] ? parseInt(sizeM[2]) : null;
@@ -73,6 +83,13 @@ export function parseMarkdown(md) {
         if (hm) forceH = parseInt(hm[1]);
       }
       blocks.push({ type: 'image', alt: imgm[1], src, forceW, forceH });
+      i++; continue;
+    }
+
+    // lazy continuation — a line that is no other construct, right after a list item, joins it
+    const prev = blocks[blocks.length - 1];
+    if (prev && (prev.type === 'bullet' || prev.type === 'numbered')) {
+      prev.text += ' ' + line.trim();
       i++; continue;
     }
 

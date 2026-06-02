@@ -120,11 +120,28 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       color: g('mermaid_code.color', '555555'),
       fill:  g('mermaid_code.fill', 'F3F4F5'),
     },
+    mermaid: {
+      // mmdc -s scale: PNG is rendered at `renderScale`× resolution
+      renderScale:  g('mermaid.render_scale', 2),
+      // base font (px) mermaid uses at scale=1 (default theme ~16px)
+      baseFontPx:   g('mermaid.base_font_px', 16),
+      // keep image within one page (no taller than content area) to avoid layout breakage
+      fitPage:      g('mermaid.fit_page', true),
+      // target font size (pt) for EVERY mermaid diagram. 0 = follow body.size.
+      // Note: a very tall diagram may still be shrunk below this by the resize/fit-page step.
+      fontSize:     g('mermaid.font_size', 9.5),
+      // font-size floor (pt) when shrinking — never resize text below this
+      minFontPt:    g('mermaid.min_font_pt', 7.5),
+      // height tolerance for the slice decision: a diagram only slightly taller than one page
+      // (≤ this ratio) at the font floor prefers a one-page resize over slicing. Absorbs mermaid render jitter.
+      fitTolerance: g('mermaid.fit_tolerance', 0.06),
+    },
     list: {
       indentDXA: Math.round(g('list.indent', 0.63) * 567),
       bullets:   g('list.bullets', null) || ['•', '◦', '▪'],
     },
     link: { color: g('link.color', '0563C1') },
+    image: { caption: g('image.caption', true) },
   };
 }
 

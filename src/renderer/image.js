@@ -2,8 +2,9 @@ import { Paragraph, ImageRun, AlignmentType } from 'docx';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { pngDims } from '../mermaid.js';
+import { makeRuns } from '../parser/inline.js';
 
-export function imageBlock(block, cfg, CW, baseDir, warnings) {
+export function imageBlock(block, cfg, CW, baseDir, warnings, ctx = {}) {
   const imgPath = resolve(baseDir, block.src);
   let imgBuf;
   try {
@@ -23,7 +24,10 @@ export function imageBlock(block, cfg, CW, baseDir, warnings) {
   const ext = imgPath.split('.').pop().toLowerCase();
   const imgType = ext === 'jpg' ? 'jpeg' : ext;
   const paras = [
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imgBuf, transformation: { width: imgPxW, height: imgPxH }, type: imgType })], spacing: { after: cfg.body.spacingAfter * 20 } }),
+    new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imgBuf, transformation: { width: imgPxW, height: imgPxH }, type: imgType })], spacing: { after: cfg.image.caption && block.alt ? 40 : cfg.body.spacingAfter * 20 } }),
   ];
+  if (cfg.image.caption && block.alt) {
+    paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: makeRuns(`_${block.alt}_`, {}, cfg, ctx), spacing: { after: cfg.body.spacingAfter * 20 } }));
+  }
   return paras;
 }

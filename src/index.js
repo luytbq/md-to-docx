@@ -12,15 +12,16 @@ import { buildDocument } from './renderer/document.js';
  * @param {object} [opts.config]         - Config overrides (lower priority than YAML frontmatter)
  * @param {string} [opts.baseDir]        - Base dir for resolving relative image paths (default: cwd)
  * @param {boolean} [opts.keepMermaidText] - Include mermaid source after diagram image
- * @returns {Promise<{ buffer: Buffer, warnings: Array<{type: string, message: string}> }>}
+ * @param {boolean} [opts.splitTall]     - Slice tall mermaid diagrams into page-height images (needs ImageMagick)
+ * @returns {Promise<{ buffer: Buffer, warnings: Array<{type: string, message: string}>, meta: { hasMermaid: boolean, hasTallMermaid: boolean } }>}
  */
 export async function convert(md, opts = {}) {
-  const { baseDir = process.cwd(), config: configOverrides = {}, keepMermaidText = false } = opts;
+  const { baseDir = process.cwd(), config: configOverrides = {}, keepMermaidText = false, splitTall = false } = opts;
   const { yamlRaw, body } = parseFrontmatter(md);
   const cfg = buildConfig(yamlRaw, configOverrides);
   const yamlY = parseYaml(yamlRaw);
   const blocks = parseMarkdown(body);
-  return buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidText });
+  return buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidText, splitTall });
 }
 
 /**
@@ -31,19 +32,20 @@ export async function convert(md, opts = {}) {
  * @param {string} [opts.output]          - Output path (default: same dir as input, .docx extension)
  * @param {object} [opts.config]          - Config overrides
  * @param {boolean} [opts.keepMermaidText]
- * @returns {Promise<{ outputPath: string, warnings: Array<{type: string, message: string}> }>}
+ * @param {boolean} [opts.splitTall]
+ * @returns {Promise<{ outputPath: string, warnings: Array<{type: string, message: string}>, meta: { hasMermaid: boolean, hasTallMermaid: boolean } }>}
  */
 export async function convertFile(inputPath, opts = {}) {
   const md = readFileSync(inputPath, 'utf8');
   const baseDir = dirname(inputPath);
-  const { output, config: configOverrides = {}, keepMermaidText = false } = opts;
+  const { output, config: configOverrides = {}, keepMermaidText = false, splitTall = false } = opts;
 
   const { yamlRaw } = parseFrontmatter(md);
   const cfg = buildConfig(yamlRaw, configOverrides);
   const stem = basename(inputPath).replace(/\.[^.]+$/, '');
   const outputPath = output ?? join(baseDir, (cfg.outputFilename || stem) + '.docx');
 
-  const { buffer, warnings } = await convert(md, { baseDir, config: configOverrides, keepMermaidText });
+  const { buffer, warnings, meta } = await convert(md, { baseDir, config: configOverrides, keepMermaidText, splitTall });
   writeFileSync(outputPath, buffer);
-  return { outputPath, warnings };
+  return { outputPath, warnings, meta };
 }

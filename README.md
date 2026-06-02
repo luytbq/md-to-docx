@@ -5,11 +5,12 @@ Convert Markdown to DOCX (Word) with YAML frontmatter config, mermaid diagrams, 
 ## Features
 
 - Headings (H1–H6), paragraphs, bold, italic, inline code, links
+- Internal links to headings (`[text](#heading-slug)`, GitHub-style slugs)
 - Tables with column alignment and alternating row colors
 - Fenced code blocks with language label
-- Mermaid diagrams rendered as PNG images
-- Local images (PNG, JPEG, etc.) with optional size override
-- Bullet and numbered lists (nested)
+- Mermaid diagrams rendered as PNG images, font-size normalized, with optional page slicing for tall diagrams
+- Local images (PNG, JPEG, etc.) with optional size override and optional captions
+- Bullet and numbered lists (nested; each numbered list restarts at 1)
 - Page breaks, horizontal rules
 - Full style control via YAML frontmatter (font, size, color, spacing, ...)
 - Programmatic API + CLI
@@ -18,6 +19,7 @@ Convert Markdown to DOCX (Word) with YAML frontmatter config, mermaid diagrams, 
 
 - Node.js >= 18
 - [`mmdc`](https://github.com/mermaid-js/mermaid-cli) for mermaid diagrams: `npm install -g @mermaid-js/mermaid-cli`
+- ImageMagick (`convert`) — **optional**, only needed for `--split-tall-mermaid` (slicing tall diagrams across pages)
 
 ## Installation
 
@@ -31,12 +33,14 @@ npm install -g @luytbq/md-to-docx
 md-to-docx input.md
 md-to-docx input.md -o output.docx
 md-to-docx input.md -o output.docx --keep-mermaid-text
+md-to-docx input.md --split-tall-mermaid
 ```
 
 | Flag | Description |
 |:-----|:------------|
 | `-o`, `--output` | Output `.docx` path. Default: same directory as input, same filename |
 | `--keep-mermaid-text` | Append mermaid source code after each rendered diagram |
+| `--split-tall-mermaid` | Slice a diagram taller than one page into page-fitting images (keeps font size; needs ImageMagick) |
 
 ## Programmatic API
 
@@ -44,20 +48,26 @@ md-to-docx input.md -o output.docx --keep-mermaid-text
 import { convert, convertFile } from '@luytbq/md-to-docx';
 
 // From a markdown string → Buffer
-const { buffer, warnings } = await convert(markdownString, {
+const { buffer, warnings, meta } = await convert(markdownString, {
   baseDir: '/path/to/assets',   // for resolving relative image paths
   keepMermaidText: false,
+  splitTall: false,             // slice tall mermaid diagrams across pages (needs ImageMagick)
   config: { /* config overrides — see Config section */ },
 });
 
 // From a file → writes .docx file
-const { outputPath, warnings } = await convertFile('report.md', {
+const { outputPath, warnings, meta } = await convertFile('report.md', {
   output: 'report.docx',        // optional, defaults to same dir
   keepMermaidText: false,
+  splitTall: false,
 });
 
-// warnings: [{ type: 'mermaid' | 'image', message: string }]
+// warnings: [{ type: 'mermaid' | 'image' | 'link', message: string }]
 for (const w of warnings) console.warn(`[${w.type}] ${w.message}`);
+
+// meta: { hasMermaid: boolean, hasTallMermaid: boolean }
+//   hasMermaid     — the document contains at least one mermaid block
+//   hasTallMermaid — a diagram is taller than one page (consider splitTall)
 ```
 
 ## Config via YAML Frontmatter
@@ -122,6 +132,17 @@ inline_code:
   font: Courier New
   color: 555555
 
+mermaid:
+  render_scale: 2      # mmdc -s: PNG rendered at Nx resolution
+  base_font_px: 16     # mermaid's base font (px) at scale 1
+  font_size: 9.5       # target font size (pt) for every diagram; 0 = follow body.size
+  min_font_pt: 7.5     # never shrink diagram text below this when fitting
+  fit_page: true       # shrink a too-tall diagram to fit one page
+  fit_tolerance: 0.06  # slack before slicing (absorbs render jitter / slight margin overflow)
+
+image:
+  caption: true        # render the image alt text as an italic caption below it
+
 list:
   indent: 0.63        # cm
   bullets:
@@ -139,6 +160,21 @@ output:
 # Document starts here
 ```
 
+## Internal Links
+
+Link to any heading in the document using a GitHub-style slug:
+
+```markdown
+## Architecture Overview
+
+See the [Architecture Overview](#architecture-overview) for details.
+```
+
+Slugs are lowercase, with punctuation removed and spaces replaced by `-` (unicode
+letters, including Vietnamese diacritics, are preserved). Duplicate headings get
+`-1`, `-2`, … suffixes (e.g. a second `## Notes` → `#notes-1`). An unresolved link
+renders as plain text and emits a `link` warning.
+
 ## Mermaid Diagrams
 
 ````markdown
@@ -151,6 +187,12 @@ graph TD
 ````
 
 If `mmdc` is not found, the diagram falls back to a plain code block and a warning is emitted.
+
+Every diagram is scaled so its text renders at roughly `mermaid.font_size` pt
+(default 9.5), so diagrams across the document share a consistent text size rather
+than each stretching to the full page width. A diagram taller than one page is
+shrunk to fit (down to the `mermaid.min_font_pt` floor); pass `--split-tall-mermaid`
+to instead slice it into page-height images at full font size (requires ImageMagick).
 
 **Environment variables:**
 
@@ -168,6 +210,9 @@ If `mmdc` is not found, the diagram falls back to a plain code block and a warni
 ```
 
 Images are resolved relative to the markdown file location (CLI) or `baseDir` option (API).
+
+When `image.caption` is enabled (default), the alt text is rendered as an italic,
+centered caption below the image. Set `image.caption: false` to suppress it.
 
 ## Page Breaks
 
