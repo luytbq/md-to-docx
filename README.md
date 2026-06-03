@@ -13,6 +13,7 @@ Convert Markdown to DOCX (Word) with YAML frontmatter config, mermaid diagrams, 
 - Bullet and numbered lists (nested; each numbered list restarts at 1)
 - Page breaks, horizontal rules
 - Full style control via YAML frontmatter (font, size, color, spacing, ...)
+- Footer with page number (configurable font, size, color)
 - Programmatic API + CLI
 
 ## Requirements
@@ -142,6 +143,12 @@ mermaid:
 
 image:
   caption: true        # render the image alt text as an italic caption below it
+
+footer:
+  page_number: false   # set to true to show page number in footer
+  font: Arial          # default: body.font
+  size: 9              # default: body.size
+  color: 888888        # default: body.color
 
 list:
   indent: 0.63        # cm
