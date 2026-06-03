@@ -10,8 +10,9 @@ mermaid:
   font_size: 9.5
 image:
   caption: true
-output:
-  filename: kitchen-sink
+footer:
+  page_number: true
+
 ---
 
 # Introduction

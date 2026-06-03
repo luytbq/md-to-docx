@@ -142,6 +142,12 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
     },
     link: { color: g('link.color', '0563C1') },
     image: { caption: g('image.caption', true) },
+    footer: {
+      pageNumber: g('footer.page_number', false),
+      font:       g('footer.font', null),
+      size:       g('footer.size', null),
+      color:      g('footer.color', null),
+    },
   };
 }
 

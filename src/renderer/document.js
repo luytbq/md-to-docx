@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Bookmark,
-         AlignmentType, BorderStyle, ShadingType, LevelFormat } from 'docx';
+         AlignmentType, BorderStyle, ShadingType, LevelFormat, Footer, PageNumber } from 'docx';
 import { makeRuns } from '../parser/inline.js';
 import { slugify } from '../parser/slug.js';
 import { mdTable } from './table.js';
@@ -118,6 +118,19 @@ export async function buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidTe
 
   const bullets = Array.isArray(cfg.list.bullets) ? cfg.list.bullets : ['•', '◦', '▪'];
 
+  const sectionFooters = [];
+  if (cfg.footer.pageNumber) {
+    const footerFont  = cfg.footer.font  ?? cfg.body.font;
+    const footerSize  = (cfg.footer.size  ?? cfg.body.size) * 2;
+    const footerColor = String(cfg.footer.color ?? cfg.body.color);
+    sectionFooters.push(new Footer({
+      children: [new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        children: [new TextRun({ font: footerFont, size: footerSize, color: footerColor, children: [PageNumber.CURRENT] })],
+      })],
+    }));
+  }
+
   const doc = new Document({
     numbering: {
       config: [
@@ -153,7 +166,7 @@ export async function buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidTe
         },
       ],
     },
-    sections: [{ properties: { page: { size: { width: PAGE[0], height: PAGE[1] }, margin: MG } }, children }],
+    sections: [{ properties: { page: { size: { width: PAGE[0], height: PAGE[1] }, margin: MG } }, children, ...(sectionFooters.length ? { footers: { default: sectionFooters[0] } } : {}) }],
   });
 
   const buffer = await Packer.toBuffer(doc);
