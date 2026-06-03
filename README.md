@@ -18,9 +18,20 @@ Convert Markdown to DOCX (Word) with YAML frontmatter config, mermaid diagrams, 
 
 ## Requirements
 
-- Node.js >= 18
-- [`mmdc`](https://github.com/mermaid-js/mermaid-cli) for mermaid diagrams: `npm install -g @mermaid-js/mermaid-cli`
-- ImageMagick (`convert`) — **optional**, only needed for `--split-tall-mermaid` (slicing tall diagrams across pages)
+- **Node.js >= 18** — that's the only thing you install.
+
+Everything else is bundled. The mermaid CLI (`mmdc`) and its Chromium come in as
+dependencies, so mermaid diagrams render out of the box after `npm install` — no
+global tools, no ImageMagick. The first install downloads a Chromium for
+puppeteer, so it needs network access.
+
+**Optional overrides** (env vars):
+
+| Variable | Description |
+|:---------|:------------|
+| `MMDC_PATH` | Use a specific `mmdc` binary instead of the bundled one |
+| `CHROME_PATH` | Use a system Chrome/Chromium instead of the bundled one |
+| `PUPPETEER_SKIP_DOWNLOAD=true` | Set during `npm install` to skip the Chromium download (mermaid then falls back to code blocks)|
 
 ## Installation
 
@@ -193,20 +204,18 @@ graph TD
 ```
 ````
 
-If `mmdc` is not found, the diagram falls back to a plain code block and a warning is emitted.
+`mmdc` is bundled, so this works out of the box. If it can't be found or rendering
+fails (e.g. the Chromium download was skipped), the diagram falls back to a plain
+code block and a warning is emitted.
 
 Every diagram is scaled so its text renders at roughly `mermaid.font_size` pt
 (default 9.5), so diagrams across the document share a consistent text size rather
 than each stretching to the full page width. A diagram taller than one page is
 shrunk to fit (down to the `mermaid.min_font_pt` floor); pass `--split-tall-mermaid`
-to instead slice it into page-height images at full font size (requires ImageMagick).
+to instead slice it into page-height images at full font size.
 
-**Environment variables:**
-
-| Variable | Description |
-|:---------|:------------|
-| `MMDC_PATH` | Path to `mmdc` binary |
-| `CHROME_PATH` | Path to Chrome/Chromium used by mermaid renderer |
+To point at a specific `mmdc` or browser, use the `MMDC_PATH` / `CHROME_PATH` env
+vars (see [Requirements](#requirements)).
 
 ## Images
 
