@@ -29,12 +29,29 @@ export function tcell(text, { width, bold = false, italic = false, color, fill, 
   return new TableCell(cellOpts);
 }
 
-export function mdTable(block, cfg, CW, ctx = {}) {
-  const cols = block.headers.length;
-  const total = block.headers.reduce((s, h) => s + Math.max(h.length, 1), 0);
-  let widths = block.headers.map(h => Math.max(700, Math.round(Math.max(h.length, 1) / total * CW)));
+/**
+ * Allocate column widths (DXA) from actual content, not just the header text.
+ * Each column's "demand" is the longest cell across its header and body (markdown markers
+ * stripped), capped so one very long cell wraps instead of starving the narrow columns;
+ * CW is then split proportionally with a per-column minimum, leftover going to the widest.
+ */
+export function columnWidths(block, CW, { cap = 45, min = 800 } = {}) {
+  const plainLen = s => s.replace(/[*_`]/g, '').length;
+  const weights = block.headers.map((h, i) => {
+    let m = plainLen(h);
+    for (const row of block.rows) m = Math.max(m, plainLen(row[i] ?? ''));
+    return Math.min(Math.max(m, 1), cap);
+  });
+  const total = weights.reduce((a, b) => a + b, 0) || 1;
+  const widths = weights.map(w => Math.max(min, Math.round(w / total * CW)));
   const diff = CW - widths.reduce((a, b) => a + b, 0);
   widths[widths.indexOf(Math.max(...widths))] += diff;
+  return widths;
+}
+
+export function mdTable(block, cfg, CW, ctx = {}) {
+  const cols = block.headers.length;
+  const widths = columnWidths(block, CW);
   const fontSize = Math.max(8, cfg.table.rowSize - Math.floor(Math.max(0, cols - 3) / 2));
   const BORDERS = borders(cfg);
   const rows = [
