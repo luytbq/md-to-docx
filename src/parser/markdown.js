@@ -1,101 +1,148 @@
+/**
+ * Parse a markdown body into a flat list of block objects (the renderer's "AST").
+ * Line-based, not CommonMark: each line is classified independently, except for
+ * fenced code blocks and tables (multi-line) and bullet/numbered list continuation.
+ */
 export function parseMarkdown(md) {
   const lines = md.split('\n');
   const blocks = [];
+  // Tracks the active bullet list's indentation to derive nesting levels.
+  // Any structural block (code/table/heading/hr/image) resets it, ending the list context.
+  const listIndent = createIndentTracker();
   let i = 0;
-  let listIndentStack = [];  // stack of seen leading-space widths → bullet nesting levels
+
   while (i < lines.length) {
     const line = lines[i];
+    const trimmed = line.trim();
 
-    // fenced code block
+    // ── Multi-line blocks ──────────────────────────────────────────────
     if (/^```/.test(line)) {
-      listIndentStack = [];
-      const lang = line.slice(3).trim();
-      const code = [];
-      i++;
-      while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[i++]);
-      i++;
-      blocks.push({ type: 'codeblock', lang, code: code.join('\n') });
-      continue;
+      listIndent.reset();
+      const { block, next } = parseFence(lines, i);
+      blocks.push(block); i = next; continue;
+    }
+    if (isTableStart(lines, i)) {
+      listIndent.reset();
+      const { block, next } = parseTable(lines, i);
+      blocks.push(block); i = next; continue;
     }
 
-    // table
-    if (/^\|/.test(line) && i + 1 < lines.length && /^\|[\s\-:|]+\|/.test(lines[i + 1])) {
-      listIndentStack = [];
-      const splitCells = s => s.replace(/\\\|/g, '\x00').split('|').map(c => c.replace(/\x00/g, '|').trim());
-      const headers = splitCells(line).slice(1, -1);
-      const sepCells = splitCells(lines[i + 1]).slice(1, -1);
-      const align = sepCells.map(s => /^:-+:$/.test(s) ? 'center' : /-+:$/.test(s) ? 'right' : 'left');
-      i += 2;
-      const rows = [];
-      while (i < lines.length && /^\|/.test(lines[i])) {
-        rows.push(splitCells(lines[i]).slice(1, -1));
-        i++;
-      }
-      blocks.push({ type: 'table', headers, rows, align });
-      continue;
-    }
-
-    // heading
-    const hm = line.match(/^(#{1,6})\s+(.*)/);
-    if (hm) { listIndentStack = []; blocks.push({ type: 'heading', level: hm[1].length, text: hm[2].trim() }); i++; continue; }
-
-    // hr
-    if (/^(\*{3,}|-{3,}|_{3,})$/.test(line.trim())) { listIndentStack = []; blocks.push({ type: 'hr' }); i++; continue; }
-
-    // bullet — derive nesting level from relative indentation (handles 2- or 4-space schemes)
-    const bm = line.match(/^(\s*)[-*+]\s+(.*)/);
-    if (bm) {
-      const spaces = bm[1].length;
-      while (listIndentStack.length && listIndentStack[listIndentStack.length - 1] > spaces) listIndentStack.pop();
-      if (!listIndentStack.length || listIndentStack[listIndentStack.length - 1] < spaces) listIndentStack.push(spaces);
-      blocks.push({ type: 'bullet', text: bm[2].trim(), indent: Math.min(listIndentStack.length - 1, 2) });
+    // ── Single-line blocks (in priority order) ─────────────────────────
+    const heading = line.match(/^(#{1,6})\s+(.*)/);
+    if (heading) {
+      listIndent.reset();
+      blocks.push({ type: 'heading', level: heading[1].length, text: heading[2].trim() });
       i++; continue;
     }
 
-    // numbered
-    const nm = line.match(/^(\s*)\d+\.\s+(.*)/);
-    if (nm) { blocks.push({ type: 'numbered', text: nm[2].trim(), indent: Math.min(Math.floor(nm[1].length / 4), 1) }); i++; continue; }
+    if (/^(\*{3,}|-{3,}|_{3,})$/.test(trimmed)) {
+      listIndent.reset();
+      blocks.push({ type: 'hr' }); i++; continue;
+    }
 
-    // blank
-    if (!line.trim()) { blocks.push({ type: 'blank' }); i++; continue; }
+    const bullet = line.match(/^(\s*)[-*+]\s+(.*)/);
+    if (bullet) {
+      blocks.push({ type: 'bullet', text: bullet[2].trim(), indent: listIndent.levelFor(bullet[1].length) });
+      i++; continue;
+    }
 
-    // <br> → blank line
-    if (/^<br\s*\/?>$/i.test(line.trim())) { blocks.push({ type: 'blank' }); i++; continue; }
+    const numbered = line.match(/^(\s*)\d+\.\s+(.*)/);
+    if (numbered) {
+      blocks.push({ type: 'numbered', text: numbered[2].trim(), indent: Math.min(Math.floor(numbered[1].length / 4), 1) });
+      i++; continue;
+    }
 
-    // page break
+    if (!trimmed) { blocks.push({ type: 'blank' }); i++; continue; }
+    if (/^<br\s*\/?>$/i.test(trimmed)) { blocks.push({ type: 'blank' }); i++; continue; }
     if (/page-break-after\s*:\s*always/i.test(line)) { blocks.push({ type: 'pagebreak' }); i++; continue; }
+    if (/^<[^>]+>$/.test(trimmed)) { i++; continue; }  // stray HTML tag / comment — strip and skip
 
-    // other HTML tags — strip and skip
-    if (/^<[^>]+>$/.test(line.trim())) { i++; continue; }
-
-    // image  ![alt](path =WxH)  or  ![alt](path){width=W height=H}
-    const imgm = line.trim().match(/^!\[([^\]]*)\]\(([^)]+)\)(\{([^}]*)\})?$/);
-    if (imgm) {
-      listIndentStack = [];
-      const sizeM = imgm[2].match(/^(.*?)\s+=(\d*)x(\d*)$/);
-      const src = sizeM ? sizeM[1].trim() : imgm[2].trim();
-      let forceW = sizeM && sizeM[2] ? parseInt(sizeM[2]) : null;
-      let forceH = sizeM && sizeM[3] ? parseInt(sizeM[3]) : null;
-      if (imgm[4]) {
-        const wm = imgm[4].match(/width=(\d+)/);
-        const hm = imgm[4].match(/height=(\d+)/);
-        if (wm) forceW = parseInt(wm[1]);
-        if (hm) forceH = parseInt(hm[1]);
-      }
-      blocks.push({ type: 'image', alt: imgm[1], src, forceW, forceH });
-      i++; continue;
+    const image = parseImage(trimmed);
+    if (image) {
+      listIndent.reset();
+      blocks.push(image); i++; continue;
     }
 
-    // lazy continuation — a line that is no other construct, right after a list item, joins it
+    // Lazy continuation — a line that is no other construct, right after a list item, joins it.
     const prev = blocks[blocks.length - 1];
     if (prev && (prev.type === 'bullet' || prev.type === 'numbered')) {
-      prev.text += ' ' + line.trim();
+      prev.text += ' ' + trimmed;
       i++; continue;
     }
 
-    // paragraph
-    blocks.push({ type: 'paragraph', text: line.trim() });
+    blocks.push({ type: 'paragraph', text: trimmed });
     i++;
   }
   return blocks;
+}
+
+// ── Block parsers ────────────────────────────────────────────────────────────
+
+// Fenced code block: from the opening ``` to the next ``` (or end of input).
+// Returns the block and the line index just past the closing fence.
+function parseFence(lines, i) {
+  const lang = lines[i].slice(3).trim();
+  const code = [];
+  let j = i + 1;
+  while (j < lines.length && !/^```/.test(lines[j])) code.push(lines[j++]);
+  return { block: { type: 'codeblock', lang, code: code.join('\n') }, next: j + 1 };
+}
+
+// A table starts with a `|…` row immediately followed by a `|---|---|` separator row.
+function isTableStart(lines, i) {
+  return /^\|/.test(lines[i]) && i + 1 < lines.length && /^\|[\s\-:|]+\|/.test(lines[i + 1]);
+}
+
+// Parse a table (assumes isTableStart). Reads the header, the alignment row, then body rows
+// until a non-`|` line. Returns the block and the line index just past the table.
+function parseTable(lines, i) {
+  const headers = splitRow(lines[i]);
+  const align = splitRow(lines[i + 1]).map(s =>
+    /^:-+:$/.test(s) ? 'center' : /-+:$/.test(s) ? 'right' : 'left');
+  let j = i + 2;
+  const rows = [];
+  while (j < lines.length && /^\|/.test(lines[j])) rows.push(splitRow(lines[j++]));
+  return { block: { type: 'table', headers, rows, align }, next: j };
+}
+
+// Split a `| a | b |` row into trimmed cell texts, honoring `\|` escapes and dropping the
+// empty leading/trailing cells produced by the outer pipes.
+function splitRow(s) {
+  return s.replace(/\\\|/g, '\x00').split('|').map(c => c.replace(/\x00/g, '|').trim()).slice(1, -1);
+}
+
+// Parse a standalone image line, with optional size via `path =WxH` or `{width=W height=H}`.
+// Returns an image block, or null if the line is not an image.
+function parseImage(line) {
+  const m = line.match(/^!\[([^\]]*)\]\(([^)]+)\)(?:\{([^}]*)\})?$/);
+  if (!m) return null;
+  const [, alt, target, attrs] = m;
+
+  const sizeM = target.match(/^(.*?)\s+=(\d*)x(\d*)$/);
+  const src = (sizeM ? sizeM[1] : target).trim();
+  let forceW = sizeM && sizeM[2] ? parseInt(sizeM[2]) : null;
+  let forceH = sizeM && sizeM[3] ? parseInt(sizeM[3]) : null;
+  if (attrs) {
+    const w = attrs.match(/width=(\d+)/);
+    const h = attrs.match(/height=(\d+)/);
+    if (w) forceW = parseInt(w[1]);
+    if (h) forceH = parseInt(h[1]);
+  }
+  return { type: 'image', alt, src, forceW, forceH };
+}
+
+// ── Bullet nesting ───────────────────────────────────────────────────────────
+
+// Maps leading-space widths to nesting levels (0-based, capped at 2) by tracking a stack of
+// seen indents — works for both 2- and 4-space schemes. `reset()` ends the current list.
+function createIndentTracker() {
+  let stack = [];
+  return {
+    reset() { stack = []; },
+    levelFor(spaces) {
+      while (stack.length && stack[stack.length - 1] > spaces) stack.pop();
+      if (!stack.length || stack[stack.length - 1] < spaces) stack.push(spaces);
+      return Math.min(stack.length - 1, 2);
+    },
+  };
 }
