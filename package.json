@@ -5,8 +5,27 @@
   "type": "module",
   "license": "MIT",
   "author": "luytbq",
+  "keywords": [
+    "markdown",
+    "docx",
+    "word",
+    "converter",
+    "mermaid",
+    "yaml-frontmatter"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luytbq/md-to-docx.git"
+  },
+  "homepage": "https://github.com/luytbq/md-to-docx#readme",
+  "bugs": {
+    "url": "https://github.com/luytbq/md-to-docx/issues"
+  },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": "./src/index.js"
