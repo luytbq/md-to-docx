@@ -6,6 +6,8 @@ Convert Markdown to DOCX (Word) with YAML frontmatter config, mermaid diagrams, 
 
 - Headings (H1–H6), paragraphs, bold, italic, inline code, links
 - Internal links to headings (`[text](#heading-slug)`, GitHub-style slugs)
+- Manual line breaks with `<br>` (works inside table cells)
+- HTML comments `<!-- … -->` on their own line(s) (single- and multi-line) are skipped, like in normal markdown viewers
 - Tables with column alignment and alternating row colors
 - Fenced code blocks with language label
 - Mermaid diagrams rendered as PNG images, font-size normalized, with optional page slicing for tall diagrams
@@ -192,6 +194,37 @@ Slugs are lowercase, with punctuation removed and spaces replaced by `-` (unicod
 letters, including Vietnamese diacritics, are preserved). Duplicate headings get
 `-1`, `-2`, … suffixes (e.g. a second `## Notes` → `#notes-1`). An unresolved link
 renders as plain text and emits a `link` warning.
+
+## Line Breaks
+
+Use `<br>` (or `<br/>`) to force a line break inside a single block — most useful in
+table cells, where a literal newline can't exist because one row must stay on one
+source line:
+
+```markdown
+| Tình huống | Mô tả |
+| --- | --- |
+| Case A | Dòng 1<br>Dòng 2<br>**Dòng 3 đậm** |
+```
+
+Inline markdown (`**bold**`, `` `code` ``, links, …) is still parsed within each line,
+and `<br><br>` produces consecutive blank lines. A line that is *only* `<br>` (on its
+own, outside a table) is treated as a blank paragraph instead.
+
+## Comments
+
+HTML comments that **start a line** are dropped, single- or multi-line:
+
+```markdown
+<!-- this whole line is skipped -->
+
+<!-- so is a
+multi-line comment -->
+```
+
+The closing `-->` line is dropped in full, so don't put visible text after it on the
+same line. A comment that begins mid-line (e.g. `text <!-- note -->`) is **not**
+stripped — it renders literally.
 
 ## Mermaid Diagrams
 

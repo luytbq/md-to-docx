@@ -1,6 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseMarkdown } from '../src/parser/markdown.js';
+import { makeRuns } from '../src/parser/inline.js';
+import { buildConfig } from '../src/config.js';
+
+const cfg = buildConfig('', {});
+
+// docx serializes a TextRun to a tree; these reach into it to assert on the output.
+const runText = r => {
+  const t = r.root.find(c => c && c.rootKey === 'w:t');
+  return t ? t.root.find(x => typeof x === 'string') ?? '' : null;
+};
+const isBreak = r => r.root.some(c => c && c.rootKey === 'w:br');
+const isBold = r => {
+  const rpr = r.root.find(c => c && c.rootKey === 'w:rPr');
+  return !!(rpr && rpr.root.some(c => c && c.rootKey === 'w:b'));
+};
 
 test('parseMarkdown: heading levels', () => {
   const blocks = parseMarkdown('# H1\n## H2\n### H3');
@@ -131,4 +146,49 @@ test('parseMarkdown: image with {width=W height=H}', () => {
 test('parseMarkdown: br tag becomes blank', () => {
   const blocks = parseMarkdown('<br/>');
   assert.equal(blocks[0].type, 'blank');
+});
+
+test('parseMarkdown: single-line HTML comment is dropped', () => {
+  const blocks = parseMarkdown('before\n<!-- a comment -->\nafter');
+  assert.deepEqual(blocks.map(b => b.text), ['before', 'after']);
+});
+
+test('parseMarkdown: multi-line HTML comment is dropped', () => {
+  const blocks = parseMarkdown('before\n<!-- line one\nline two -->\nafter');
+  assert.deepEqual(blocks.map(b => b.text), ['before', 'after']);
+});
+
+test('parseMarkdown: HTML comment inside a code block is preserved literally', () => {
+  const blocks = parseMarkdown('```\n<!-- not a comment here -->\n```');
+  assert.equal(blocks[0].type, 'codeblock');
+  assert.equal(blocks[0].code, '<!-- not a comment here -->');
+});
+
+test('makeRuns: <br> inserts a break run between text runs', () => {
+  const runs = makeRuns('a<br>b', {}, cfg);
+  assert.equal(runs.length, 3);
+  assert.equal(runText(runs[0]), 'a');
+  assert.ok(isBreak(runs[1]));
+  assert.equal(runText(runs[2]), 'b');
+});
+
+test('makeRuns: inline markdown is parsed within each <br> segment', () => {
+  const runs = makeRuns('a<br>**b**', {}, cfg);
+  assert.equal(runText(runs[0]), 'a');
+  assert.ok(isBreak(runs[1]));
+  assert.equal(runText(runs[2]), 'b');
+  assert.ok(isBold(runs[2]));
+});
+
+test('makeRuns: <br><br> produces two consecutive break runs', () => {
+  const runs = makeRuns('a<br><br>b', {}, cfg);
+  assert.equal(runText(runs[0]), 'a');
+  assert.ok(isBreak(runs[1]));
+  assert.ok(isBreak(runs[2]));
+  assert.equal(runText(runs[3]), 'b');
+});
+
+test('makeRuns: <br/> and <br /> are both recognized', () => {
+  assert.ok(isBreak(makeRuns('a<br/>b', {}, cfg)[1]));
+  assert.ok(isBreak(makeRuns('a<br />b', {}, cfg)[1]));
 });

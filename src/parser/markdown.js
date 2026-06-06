@@ -16,6 +16,13 @@ export function parseMarkdown(md) {
     const trimmed = line.trim();
 
     // ── Multi-line blocks ──────────────────────────────────────────────
+    // HTML comment `<!-- … -->` (single- or multi-line). Invisible in normal markdown
+    // viewers, so drop it entirely — including the line carrying the closing `-->`.
+    if (/^\s*<!--/.test(line)) {
+      let j = i;
+      while (j < lines.length && !/-->/.test(lines[j])) j++;
+      i = j + 1; continue;
+    }
     if (/^```/.test(line)) {
       listIndent.reset();
       const { block, next } = parseFence(lines, i);

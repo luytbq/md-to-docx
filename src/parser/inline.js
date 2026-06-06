@@ -32,6 +32,18 @@ export function makeRuns(text, base = {}, cfg, ctx = {}) {
   const plain = t => new TextRun({ text: t, font: cfg.body.font, ...base });
   if (!text) return [plain('')];
 
+  // `<br>` → manual line break. Common in table cells, where a literal newline can't
+  // exist (one row = one source line). Split on it and recurse; each gap inserts a
+  // break run, so inline markdown inside each segment is still parsed normally.
+  if (/<br\s*\/?>/i.test(text)) {
+    const runs = [];
+    text.split(/<br\s*\/?>/i).forEach((seg, i) => {
+      if (i > 0) runs.push(new TextRun({ break: 1 }));
+      if (seg) runs.push(...makeRuns(seg, base, cfg, ctx));
+    });
+    return runs;
+  }
+
   const runs = [];
   let pos = 0; // index just past the previously emitted slice
 
