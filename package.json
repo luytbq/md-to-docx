@@ -31,7 +31,7 @@
     ".": "./src/index.js"
   },
   "bin": {
-    "md-to-docx": "./bin/md-to-docx.js"
+    "md-to-docx": "bin/md-to-docx.js"
   },
   "files": [
     "src/",
