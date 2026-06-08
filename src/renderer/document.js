@@ -7,6 +7,7 @@ import { mdTable } from './table.js';
 import { codeBlock } from './code.js';
 import { imageBlock } from './image.js';
 import { mermaidBlockParagraphs } from './mermaid.js';
+import { resolveVar } from '../config.js';
 
 const HL = [null, HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3,
             HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6];
@@ -23,33 +24,35 @@ function pageBreak() {
 
 // ── Running header/footer (3 zones + tokens) ─────────────────────────────────
 
-// Expand a zone string into TextRuns, turning {page}/{pages} into page-number fields
-// and {title}/{date} into their values; other text is literal.
-function runningRuns(text, runOpts, cfg) {
+// Expand a zone string into TextRuns: {page}/{pages} become page-number fields, every
+// other {var} resolves through the document variables (e.g. {doc.title}, {date}); an
+// unresolved token and ordinary text stay literal.
+function runningRuns(text, runOpts, vars) {
   const out = [];
-  for (const part of String(text).split(/(\{page\}|\{pages\}|\{title\}|\{date\})/g)) {
+  for (const part of String(text).split(/(\{[a-zA-Z_][\w.]*\})/g)) {
     if (part === '') continue;
-    if (part === '{page}')       out.push(new TextRun({ ...runOpts, children: [PageNumber.CURRENT] }));
-    else if (part === '{pages}') out.push(new TextRun({ ...runOpts, children: [PageNumber.TOTAL_PAGES] }));
-    else if (part === '{title}') out.push(new TextRun({ ...runOpts, text: cfg.title || '' }));
-    else if (part === '{date}')  out.push(new TextRun({ ...runOpts, text: new Date().toISOString().slice(0, 10) }));
-    else                         out.push(new TextRun({ ...runOpts, text: part }));
+    const tok = /^\{([a-zA-Z_][\w.]*)\}$/.exec(part);
+    if (!tok)                    { out.push(new TextRun({ ...runOpts, text: part })); continue; }
+    if (tok[1] === 'page')       { out.push(new TextRun({ ...runOpts, children: [PageNumber.CURRENT] })); continue; }
+    if (tok[1] === 'pages')      { out.push(new TextRun({ ...runOpts, children: [PageNumber.TOTAL_PAGES] })); continue; }
+    const v = resolveVar(vars, tok[1]);
+    out.push(new TextRun({ ...runOpts, text: v !== undefined ? String(v) : part }));
   }
   return out;
 }
 
 // Build a header/footer paragraph: left zone at the start, center after a center tab,
 // right after a right tab — the standard 3-zone OOXML layout.
-function runningParagraph(zones, cfg, CW) {
+function runningParagraph(zones, cfg, CW, vars) {
   const runOpts = {
     font:  zones.font ?? cfg.footer.font ?? cfg.body.font,
     size:  (Number(zones.size) || cfg.footer.size || cfg.body.size) * 2,
     color: String(zones.color ?? cfg.footer.color ?? cfg.body.color),
   };
   const children = [];
-  if (zones.left)   children.push(...runningRuns(zones.left, runOpts, cfg));
-  if (zones.center) children.push(new TextRun({ children: [new Tab()] }), ...runningRuns(zones.center, runOpts, cfg));
-  if (zones.right)  children.push(new TextRun({ children: [new Tab()] }), ...runningRuns(zones.right, runOpts, cfg));
+  if (zones.left)   children.push(...runningRuns(zones.left, runOpts, vars));
+  if (zones.center) children.push(new TextRun({ children: [new Tab()] }), ...runningRuns(zones.center, runOpts, vars));
+  if (zones.right)  children.push(new TextRun({ children: [new Tab()] }), ...runningRuns(zones.right, runOpts, vars));
   const border = zones.border_top    ? { top:    { style: BorderStyle.SINGLE, size: 4, color: cfg.table.border } }
                : zones.border_bottom ? { bottom: { style: BorderStyle.SINGLE, size: 4, color: cfg.table.border } }
                : undefined;
@@ -60,7 +63,7 @@ function runningParagraph(zones, cfg, CW) {
   });
 }
 
-export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = false, splitTall = false, header = null, footer = null } = {}) {
+export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = false, splitTall = false, header = null, footer = null, vars = {} } = {}) {
   const warnings = [];
   const PAGE = PAGE_SIZES[cfg.page.size] ?? PAGE_SIZES.A4;
   const mg = typeof cfg.page.margin === 'object' ? cfg.page.margin
@@ -84,7 +87,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       anchorMap[slug] = b.anchorId;
     }
   }
-  const ctx = { anchorMap, warnings };
+  const ctx = { anchorMap, warnings, vars };
 
   // The document title is not auto-rendered; `cfg.title` only feeds the `{title}`
   // header/footer token. A visible title is just normal body content the author writes.
@@ -165,13 +168,13 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
 
   let headersOpt, footersOpt;
   if (header) {
-    headersOpt = { default: new Header({ children: [runningParagraph(header, cfg, CW)] }) };
-    if (titlePage) headersOpt.first = skipHeaderFirst ? new Header({ children: [emptyPara()] }) : new Header({ children: [runningParagraph(header, cfg, CW)] });
+    headersOpt = { default: new Header({ children: [runningParagraph(header, cfg, CW, vars)] }) };
+    if (titlePage) headersOpt.first = skipHeaderFirst ? new Header({ children: [emptyPara()] }) : new Header({ children: [runningParagraph(header, cfg, CW, vars)] });
   }
   const footerZones = footer ?? (cfg.footer.pageNumber ? { right: '{page}' } : null);
   if (footerZones) {
-    footersOpt = { default: new Footer({ children: [runningParagraph(footerZones, cfg, CW)] }) };
-    if (titlePage) footersOpt.first = skipFooterFirst ? new Footer({ children: [emptyPara()] }) : new Footer({ children: [runningParagraph(footerZones, cfg, CW)] });
+    footersOpt = { default: new Footer({ children: [runningParagraph(footerZones, cfg, CW, vars)] }) };
+    if (titlePage) footersOpt.first = skipFooterFirst ? new Footer({ children: [emptyPara()] }) : new Footer({ children: [runningParagraph(footerZones, cfg, CW, vars)] });
   }
 
   const doc = new Document({

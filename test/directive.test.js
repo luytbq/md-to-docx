@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseDirective, parseArgs, resolveColor, parseStyleOpts, extractDirectives } from '../src/parser/directive.js';
 import { parseMarkdown } from '../src/parser/markdown.js';
 import { makeRuns } from '../src/parser/inline.js';
-import { buildConfig } from '../src/config.js';
+import { buildConfig, resolveVar } from '../src/config.js';
 import { convert } from '../src/index.js';
 
 const cfg = buildConfig('', {});
@@ -100,9 +100,10 @@ test('extractDirectives: multiple @config merge, later wins', () => {
   assert.equal(buildConfig(configYaml, {}).body.size, 12);
 });
 
-test('extractDirectives: @doc is an alias feeding config', () => {
-  const { configYaml } = extractDirectives('<!-- @doc\ntitle: Hello\n-->');
-  assert.equal(buildConfig(configYaml, {}).title, 'Hello');
+test('extractDirectives: @doc feeds the doc namespace (not styling config)', () => {
+  const { configYaml, docYaml } = extractDirectives('<!-- @doc\ntitle: Hello\n-->');
+  assert.equal(buildConfig(configYaml, {}).title, '');   // @doc no longer feeds buildConfig
+  assert.match(docYaml, /title: Hello/);                 // it feeds the doc.* variable namespace
 });
 
 test('extractDirectives: @footer zones', () => {
@@ -114,6 +115,53 @@ test('extractDirectives: @footer zones', () => {
 test('extractDirectives: @header skip_on_first_page parsed', () => {
   const { header } = extractDirectives('<!-- @header center="X" skip_on_first_page=true -->');
   assert.equal(header.skip_on_first_page, 'true');
+});
+
+// ── variables ────────────────────────────────────────────────────────────────
+
+const joinText = runs => runs.map(r => runText(r) ?? '').join('');
+
+test('resolveVar: dotted path, scalar, missing, and object', () => {
+  const v = { doc: { title: 'X' }, n: 3 };
+  assert.equal(resolveVar(v, 'doc.title'), 'X');
+  assert.equal(resolveVar(v, 'n'), 3);
+  assert.equal(resolveVar(v, 'doc.nope'), undefined);
+  assert.equal(resolveVar(v, 'doc'), undefined);   // points at a map, not a scalar
+});
+
+test('makeRuns: resolves {doc.*} / {vars.*} / {date} in body text', () => {
+  const ctx = { vars: { date: '2026-06-08', doc: { title: 'Hello' }, vars: { v: '2.1' } }, warnings: [] };
+  const runs = makeRuns('T={doc.title} v={vars.v} d={date}', {}, cfg, ctx);
+  assert.equal(joinText(runs), 'T=Hello v=2.1 d=2026-06-08');
+});
+
+test('makeRuns: unknown variable stays literal and warns', () => {
+  const ctx = { vars: { doc: {} }, warnings: [] };
+  assert.equal(joinText(makeRuns('{doc.missing}', {}, cfg, ctx)), '{doc.missing}');
+  assert.equal(ctx.warnings.filter(w => w.type === 'var').length, 1);
+});
+
+test('makeRuns: {page}/{pages} stay literal in body (header/footer fields only)', () => {
+  const ctx = { vars: {}, warnings: [] };
+  assert.equal(joinText(makeRuns('p {page}/{pages}', {}, cfg, ctx)), 'p {page}/{pages}');
+});
+
+test('makeRuns: a variable inside inline code is not expanded', () => {
+  const ctx = { vars: { doc: { title: 'Hello' } }, warnings: [] };
+  assert.equal(joinText(makeRuns('`{doc.title}`', {}, cfg, ctx)), '{doc.title}');
+});
+
+test('makeRuns: variables resolve inside *italic* / **bold**', () => {
+  const ctx = { vars: { doc: { title: 'Hi' } }, warnings: [] };
+  assert.equal(joinText(makeRuns('*{doc.title}*', {}, cfg, ctx)), 'Hi');
+  assert.equal(joinText(makeRuns('**{doc.title}**', {}, cfg, ctx)), 'Hi');
+});
+
+test('convert: {doc.title} resolves in body and header without a var warning', async () => {
+  const md = '<!-- @doc\ntitle: Report\n-->\n<!-- @header center="{doc.title}" -->\n# H\n\nName: {doc.title}';
+  const { buffer, warnings } = await convert(md);
+  assert.ok(buffer.length > 0);
+  assert.equal(warnings.filter(w => w.type === 'var').length, 0);
 });
 
 // ── markdown.js block handling ───────────────────────────────────────────────

@@ -50,6 +50,16 @@ export function get(obj, path, def) {
 }
 
 /**
+ * Resolve a `{variable}` reference (a dotted path) against the variables object to a
+ * scalar string/number/boolean, or `undefined` when the path is missing or points at a
+ * map. Used for document-wide `{doc.title}` / `{vars.x}` / `{date}` substitution.
+ */
+export function resolveVar(vars, path) {
+  const v = get(vars, path, undefined);
+  return (v == null || typeof v === 'object') ? undefined : v;
+}
+
+/**
  * Build config from three layers (lowest → highest priority):
  *   1. hardcoded defaults
  *   2. overrides (programmatic opts.config)

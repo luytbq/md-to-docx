@@ -1,6 +1,7 @@
 import { TextRun, ExternalHyperlink, InternalHyperlink, UnderlineType } from 'docx';
 import { slugify } from './slug.js';
 import { parseArgs, parseStyleOpts } from './directive.js';
+import { resolveVar } from '../config.js';
 
 // Inline markdown grammar. Alternatives are tried left-to-right; whichever named group
 // participated tells makeRuns which kind of run to emit. The `@style` directive is listed
@@ -16,6 +17,7 @@ const INLINE_RE = new RegExp([
   /`(?<code>[^`]+)`/,                                     // `inline code`
   /\[(?<linkText>[^\]]+)\]\((?<url>https?:\/\/[^)]+)\)/,  // [text](https://…)
   /\[(?<anchorText>[^\]]+)\]\((?<anchor>#[^)]+)\)/,       // [text](#heading)
+  /\{(?<var>[a-zA-Z_][\w.]*)\}/,                          // {variable} / {doc.title}
 ].map(piece => piece.source).join('|'), 'g');
 
 /**
@@ -60,20 +62,43 @@ export function makeRuns(text, base = {}, cfg, ctx = {}) {
       // Recurse so markdown inside the styled span still parses; the style opts layer onto base.
       runs.push(...makeRuns(g.styleBody, { ...base, ...parseStyleOpts(parseArgs(g.styleArgs), ctx.warnings) }, cfg, ctx));
     else if (bold != null)
-      runs.push(new TextRun({ text: bold, font: cfg.body.font, bold: true, ...base }));
+      runs.push(new TextRun({ text: substituteVars(bold, ctx), font: cfg.body.font, bold: true, ...base }));
     else if (italic != null)
-      runs.push(new TextRun({ text: italic, font: cfg.body.font, italics: true, ...base }));
+      runs.push(new TextRun({ text: substituteVars(italic, ctx), font: cfg.body.font, italics: true, ...base }));
     else if (g.code != null)
+      // Inline code is verbatim — variables inside it are intentionally NOT expanded.
       runs.push(new TextRun({ text: g.code, font: cfg.inlineCode.font, size: (cfg.inlineCode.size || cfg.body.size) * 2, color: cfg.inlineCode.color }));
     else if (g.url != null)
-      runs.push(externalLink(g.linkText, g.url, base, cfg));
+      runs.push(externalLink(substituteVars(g.linkText, ctx), g.url, base, cfg));
+    else if (g.var != null)
+      runs.push(plain(resolveVarToken(g.var, m[0], ctx)));
     else
-      runs.push(internalLink(g.anchorText, g.anchor, base, cfg, ctx));
+      runs.push(internalLink(substituteVars(g.anchorText, ctx), g.anchor, base, cfg, ctx));
 
     pos = m.index + m[0].length;
   }
   if (pos < text.length) runs.push(plain(text.slice(pos)));
   return runs;
+}
+
+// Resolve a `{path}` variable token to its string value. `page`/`pages` are page-number
+// fields that only have meaning in a header/footer, so in body text they stay literal.
+// An unknown variable is left literal and pushes a `var` warning.
+function resolveVarToken(name, literal, ctx) {
+  if (name === 'page' || name === 'pages') return literal;
+  const v = resolveVar(ctx.vars, name);
+  if (v !== undefined) return String(v);
+  ctx.warnings?.push({ type: 'var', message: `unknown variable {${name}}` });
+  return literal;
+}
+
+// Resolve `{var}` references embedded in already-tokenized text (bold/italic spans, link
+// labels), where the variable can't be seen as a standalone token. Unknown names stay
+// literal (silently — the standalone-token path is responsible for warnings).
+function substituteVars(text, ctx) {
+  if (!text || text.indexOf('{') === -1) return text;
+  return text.replace(/\{([a-zA-Z_][\w.]*)\}/g, (lit, name) =>
+    (name === 'page' || name === 'pages') ? lit : (resolveVar(ctx.vars, name) ?? lit));
 }
 
 // Colored, underlined text used as the clickable label of a link.

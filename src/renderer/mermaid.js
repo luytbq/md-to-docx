@@ -7,7 +7,7 @@ import { codeBlock, mermaidCodeBlock } from './code.js';
  *
  * Scales the diagram so its text shows at ~`mermaid.font_size` pt; caps to the
  * content width; if still taller than one page, either slices into page-height
- * bands (when `--split-tall-mermaid` and ImageMagick are available) or shrinks
+ * bands (when `--split-tall-mermaid` is set; pure-JS, no external tools) or shrinks
  * to fit the page (never below the `min_font_pt` floor).
  *
  * @returns {{ paras: Paragraph[], tall: boolean }}

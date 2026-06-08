@@ -30,6 +30,7 @@ For installation and how to run the tool, see the [README](../README.md).
   - [3.3 `@style` — inline run styling](#33-style--inline-run-styling)
   - [3.4 `@header` / `@footer` — running header & footer](#34-header--footer--running-header--footer)
   - [3.5 `@pagebreak`](#35-pagebreak)
+  - [3.6 Variables](#36-variables)
 - [4. Configuration reference](#4-configuration-reference)
   - [4.1 Loading & precedence](#41-loading--precedence)
   - [4.2 Units & value formats](#42-units--value-formats)
@@ -265,10 +266,13 @@ Directive summary:
 | Directive | Shape | Purpose | Section |
 |:----------|:------|:--------|:--------|
 | `@config` | block | document configuration | [3.2](#32-config--doc--document-configuration) |
-| `@doc` | block | alias of `@config` (metadata) | [3.2](#32-config--doc--document-configuration) |
+| `@doc` | block | document metadata → `doc.*` variables | [3.2](#32-config--doc--document-configuration) |
 | `@style … /style` | inline, paired | style one text run | [3.3](#33-style--inline-run-styling) |
 | `@header` / `@footer` | inline or block | running header / footer | [3.4](#34-header--footer--running-header--footer) |
 | `@pagebreak` | inline | page break | [3.5](#35-pagebreak) |
+
+Variable references (`{doc.title}`, `{vars.x}`, `{date}`, …) work anywhere — see
+[§3.6](#36-variables).
 
 ### 3.2 `@config` / `@doc` — document configuration
 
@@ -287,16 +291,19 @@ footer:
 -->
 ```
 
-`@doc` is an alias, conventionally reserved for document metadata such as the
-title:
+`@doc` holds document **metadata**; its body populates the `doc.*` variable
+namespace ([§3.6](#36-variables)) rather than styling config:
 
 ```markdown
 <!-- @doc
 title: Quarterly Report
+subtitle: Q2 2026
 -->
 ```
 
-The full set of keys is in [§4](#4-configuration-reference).
+Reference it anywhere as `{doc.title}`, `{doc.subtitle}`, …
+
+The full set of styling keys is in [§4](#4-configuration-reference).
 
 > **Cover pages** are not a directive. Write one as ordinary body content — e.g.
 > a centered `@style` title — followed by a `@pagebreak`, and use
@@ -352,15 +359,15 @@ with tab stops, and may embed tokens.
 Inline form:
 
 ```markdown
-<!-- @header left="{title}" center="Confidential" right="{date}" size=9 color=888888 border_bottom=true -->
-<!-- @footer left="© 2026 Acme" center="{page} / {pages}" right="v1.0" -->
+<!-- @header left="{doc.title}" center="Confidential" right="{date}" size=9 color=888888 border_bottom=true -->
+<!-- @footer left="© 2026 {vars.org}" center="{page} / {pages}" right="{vars.version}" -->
 ```
 
 Block form (recommended when you set several options):
 
 ```markdown
 <!-- @footer
-left: "{title}"
+left: "{doc.title}"
 center: "Page {page} of {pages}"
 right: "© 2026 Acme"
 font: Arial
@@ -371,14 +378,14 @@ skip_on_first_page: true
 -->
 ```
 
-**Tokens** (usable in any zone):
+**Tokens.** Zones may embed any [variable](#36-variables) (`{doc.*}`, `{vars.*}`,
+`{date}`, …). Two are page‑number **fields**, meaningful only here (in body text they
+stay literal):
 
 | Token | Expands to |
 |:------|:-----------|
 | `{page}` | current page number |
 | `{pages}` | total page count |
-| `{title}` | the document `title` |
-| `{date}` | build date, `YYYY-MM-DD` |
 
 **Options:**
 
@@ -402,6 +409,62 @@ A readable alias for a page break:
 ```markdown
 <!-- @pagebreak -->
 ```
+
+### 3.6 Variables
+
+Declare variables once and reference them as `{path}` **anywhere** in the document —
+body text, headings, list items, table cells, and header/footer zones.
+
+**Declaring.** Two namespaces, both written in `@doc`/`@config`:
+
+```markdown
+<!-- @doc
+title: Quarterly Report
+subtitle: Q2 2026
+author: Jane Doe
+-->
+<!-- @config
+vars:
+  version: 2.1
+  org: Acme Corp
+-->
+```
+
+| Namespace | Source | Reference |
+|:----------|:-------|:----------|
+| `doc.*` | the `@doc` body (and any `doc:` section in `@config`) | `{doc.title}`, `{doc.subtitle}`, `{doc.author}`, … |
+| `vars.*` | the `vars:` section of `@config` | `{vars.version}`, `{vars.org}`, … |
+
+Keys are arbitrary and may nest (`{doc.client.name}` from a nested `client:` map).
+
+**Built‑in variables:**
+
+| Variable | Value |
+|:---------|:------|
+| `{date}` | build date, `YYYY-MM-DD` |
+| `{now}` | alias of `{date}` |
+
+**Reserved fields:** `{page}` and `{pages}` are page‑number fields — they resolve only
+in a header/footer ([§3.4](#34-header--footer--running-header--footer)); elsewhere they
+stay literal.
+
+**Referencing:**
+
+```markdown
+# {doc.title}
+
+Version {vars.version}, prepared by {doc.author} on {date}.
+```
+
+**Resolution rules:**
+
+- A `{path}` that resolves to a scalar is replaced by its value; markdown around it
+  (e.g. `*{doc.title}*`) still applies.
+- An **unknown** variable is left literal and emits a `var` warning — useful for
+  catching typos. (So a literal `{word}` in prose will warn; wrap it in inline code to
+  silence it.)
+- Variables are **not** expanded inside inline code (`` `{doc.title}` ``) or fenced
+  code blocks — code is verbatim.
 
 ---
 
@@ -437,7 +500,7 @@ overrides**, so a document can always pin its own look.
 
 | Key | Type | Default | Description |
 |:----|:-----|:--------|:------------|
-| `title` | string | `""` | Document title. **Not** rendered into the body — it only feeds the `{title}` header/footer token. For a visible title, write one as normal content (e.g. a centered `@style` line). |
+| `title` | string | `""` | Legacy document‑title config key; not rendered. Prefer declaring the title in `@doc` and referencing it as `{doc.title}` ([§3.6](#36-variables)). |
 
 #### `page`
 

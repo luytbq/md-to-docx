@@ -1,5 +1,7 @@
 <!-- @doc
 title: Kitchen Sink — md-to-docx Feature Demo
+subtitle: Every feature in one document
+author: md-to-docx
 -->
 <!-- @config
 page:
@@ -12,12 +14,15 @@ mermaid:
   font_size: 9.5
 image:
   caption: true
+vars:
+  version: v1.0
+  org: md-to-docx
 -->
-<!-- @header left="{title}" center="Confidential" right="{date}" size=9 color=888888 border_bottom=true skip_on_first_page=true -->
+<!-- @header left="{doc.title}" center="Confidential" right="{date}" size=9 color=888888 border_bottom=true skip_on_first_page=true -->
 <!-- @footer
-left: "© 2026 md-to-docx"
+left: "© 2026 {vars.org}"
 center: "Page {page} of {pages}"
-right: "v1.0"
+right: "{vars.version}"
 font: Arial
 size: 9
 color: "888888"
@@ -25,7 +30,9 @@ border_top: true
 skip_on_first_page: true
 -->
 
-<!-- @style size=26 bold --> Kitchen Sink — md-to-docx Feature Demo <!-- /style -->
+<!-- @style size=26 bold -->{doc.title}<!-- /style -->
+
+<!-- @style size=13 italic color=666666 -->{doc.subtitle} · {doc.author} · {vars.version}<!-- /style -->
 
 <!-- @pagebreak -->
 
@@ -38,6 +45,7 @@ page breaks, and horizontal rules.
 
 Quick navigation:
 
+- Go to [Variables](#variables)
 - Go to [Inline Styling](#inline-styling)
 - Go to [Tables](#tables)
 - Go to [Mermaid Diagrams](#mermaid-diagrams)
@@ -52,6 +60,13 @@ A paragraph with **bold**, _italic_, `inline code`, an [external link](https://e
 and an [internal link back to Introduction](#introduction).
 
 Markers can mix: **bold with `code` inside**, and _italic spanning words_.
+
+## Variables
+
+Variables declared in `@doc` and `@config` resolve **anywhere** in the document.
+This is *{doc.title}* (version {vars.version}) by {doc.author}, built on {date}.
+The same `{doc.title}` token also feeds the running header. A variable inside
+inline code such as `` `{doc.title}` `` is **not** expanded.
 
 ## Inline Styling
 
@@ -72,7 +87,7 @@ Markdown still parses inside a styled run: <!-- @style color=green -->**bold and
 | Internal links | Done                                                | `[text](#slug)`               |
 | Mermaid        | Done                                                | font-normalized               |
 | Inline `@style`| <!-- @style color=green bold -->Done<!-- /style --> | styles a run, even in a cell  |
-| Tall slicing   | Optional                                            | needs ImageMagick             |
+| Tall slicing   | Optional                                            | `--split-tall-mermaid`, pure JS |
 
 A cell with a `pipe \| escaped` and an [internal link](#tables) inside it.
 
@@ -110,7 +125,7 @@ graph TD
 ### A Tall Diagram
 
 A long vertical chain — taller than one page. Run with `--split-tall-mermaid`
-(and ImageMagick installed) to slice it across pages; otherwise it is shrunk to fit.
+to slice it across pages (pure JS, no external tools); otherwise it is shrunk to fit.
 
 ```mermaid
 graph TD

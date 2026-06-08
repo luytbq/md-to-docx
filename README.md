@@ -12,7 +12,9 @@ directives. No build step, no global tools.
   Chromium), font‑size normalized, with optional page slicing for tall diagrams.
 - **Directive system** (`<!-- @… -->`) for everything else: `@config` for
   document styling, `@style` for inline run styling, `@header`/`@footer` for
-  running headers/footers with page‑number tokens, `@pagebreak` for page breaks.
+  running headers/footers, `@pagebreak` for page breaks.
+- **Variables** — declare metadata/custom values (`@doc`, `vars:`) and reference
+  them as `{doc.title}`, `{vars.version}`, `{page}`, `{date}` anywhere in the document.
 - **CLI and programmatic API**, both returning structured warnings.
 
 Full authoring details are in the **[Syntax & Configuration Reference](docs/guide.md)**.
@@ -22,8 +24,7 @@ Full authoring details are in the **[Syntax & Configuration Reference](docs/guid
 - **Node.js >= 18** — the only thing you install.
 
 Everything else is bundled: the mermaid CLI (`mmdc`) and its Chromium ship as
-dependencies, so diagrams render after `npm install` with no global tools and no
-ImageMagick. The first install downloads a Chromium for puppeteer, so it needs
+dependencies. The first install downloads a Chromium for puppeteer, so it needs
 network access.
 
 **Optional environment overrides:**
@@ -81,7 +82,7 @@ const { outputPath, warnings, meta } = await convertFile('report.md', {
   output: 'report.docx',        // optional; defaults to the same dir
 });
 
-// warnings: [{ type: 'mermaid' | 'image' | 'link' | 'style', message: string }]
+// warnings: [{ type: 'mermaid' | 'image' | 'link' | 'style' | 'var', message: string }]
 for (const w of warnings) console.warn(`[${w.type}] ${w.message}`);
 
 // meta: { hasMermaid: boolean, hasTallMermaid: boolean }
@@ -95,22 +96,27 @@ in `warnings`.
 
 - **[Syntax & Configuration Reference](docs/guide.md)** — the full Markdown
   subset, the directive system (`@config`, `@style`, `@header`/`@footer`,
-  `@pagebreak`), and every configuration key with its default and unit.
+  `@pagebreak`), the variable system, and every configuration key with its
+  default and unit.
 
 ## Quick taste
 
 ```markdown
-<!-- @config
+<!-- @doc
 title: Quarterly Report
+-->
+<!-- @config
 body:
   font: Times New Roman
   size: 12
 -->
+<!-- @header right="{doc.title}" skip_on_first_page=true -->
 <!-- @footer center="Page {page} of {pages}" skip_on_first_page=true -->
 
-# Overview
+# {doc.title}
 
-Revenue rose <!-- @style color=green bold -->12%<!-- /style --> this quarter.
+Revenue rose <!-- @style color=green bold -->12%<!-- /style --> this quarter
+(report built {date}).
 ```
 
 ## License

@@ -129,24 +129,30 @@ export function readComment(lines, i) {
  * Scan raw markdown for document-level directive comments (`@config`, `@doc`,
  * `@header`, `@footer`) — the layer that replaces YAML frontmatter. Inline `@style`
  * and render-positioned `@pagebreak` are NOT collected here (they belong to the
- * parser/renderer). Returns the merged config YAML plus header/footer option objects.
+ * parser/renderer).
  *
- * @returns {{configYaml: string, header: object|null, footer: object|null}}
+ * `@config` bodies feed styling config (and may carry `doc:`/`vars:` sections);
+ * `@doc` bodies feed the `doc.*` variable namespace. Both are returned as merged
+ * mini-YAML strings (later blocks win on key collision).
+ *
+ * @returns {{configYaml: string, docYaml: string, header: object|null, footer: object|null}}
  */
 export function extractDirectives(md) {
   const lines = md.split('\n');
   const configBodies = [];
+  const docBodies = [];
   let header = null, footer = null;
   for (let i = 0; i < lines.length;) {
     if (!/^\s*<!--/.test(lines[i])) { i++; continue; }
     const { inner, next } = readComment(lines, i);
     const dir = parseDirective(inner);
     if (dir) {
-      if (dir.name === 'config' || dir.name === 'doc') configBodies.push(dir.body);
+      if (dir.name === 'config') configBodies.push(dir.body);
+      else if (dir.name === 'doc') docBodies.push(dir.body);
       else if (dir.name === 'header') header = directiveOptions(dir);
       else if (dir.name === 'footer') footer = directiveOptions(dir);
     }
     i = next;
   }
-  return { configYaml: configBodies.join('\n'), header, footer };
+  return { configYaml: configBodies.join('\n'), docYaml: docBodies.join('\n'), header, footer };
 }
