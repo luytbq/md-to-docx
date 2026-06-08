@@ -437,7 +437,7 @@ overrides**, so a document can always pin its own look.
 
 | Key | Type | Default | Description |
 |:----|:-----|:--------|:------------|
-| `title` | string | `""` | Document title. Rendered centered & bold at the top, and available as the `{title}` header/footer token. |
+| `title` | string | `""` | Document title. **Not** rendered into the body — it only feeds the `{title}` header/footer token. For a visible title, write one as normal content (e.g. a centered `@style` line). |
 
 #### `page`
 

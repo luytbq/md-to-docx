@@ -7,7 +7,6 @@ import { mdTable } from './table.js';
 import { codeBlock } from './code.js';
 import { imageBlock } from './image.js';
 import { mermaidBlockParagraphs } from './mermaid.js';
-import { get } from '../config.js';
 
 const HL = [null, HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3,
             HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6];
@@ -61,7 +60,7 @@ function runningParagraph(zones, cfg, CW) {
   });
 }
 
-export async function buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidText = false, splitTall = false, header = null, footer = null } = {}) {
+export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = false, splitTall = false, header = null, footer = null } = {}) {
   const warnings = [];
   const PAGE = PAGE_SIZES[cfg.page.size] ?? PAGE_SIZES.A4;
   const mg = typeof cfg.page.margin === 'object' ? cfg.page.margin
@@ -87,13 +86,8 @@ export async function buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidTe
   }
   const ctx = { anchorMap, warnings };
 
-  if (cfg.title) {
-    children.push(new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 0, after: get(yamlY, 'title.spacing_after', 50) * 20 },
-      children: [new TextRun({ text: cfg.title, font: cfg.heading.font, size: get(yamlY, 'title.size', 24) * 2, bold: true, color: cfg.body.color })],
-    }));
-  }
+  // The document title is not auto-rendered; `cfg.title` only feeds the `{title}`
+  // header/footer token. A visible title is just normal body content the author writes.
 
   // Each separate numbered list needs its own instance so it restarts at 1 (a shared reference keeps counting up).
   // A list stays continuous across blank lines and nested bullets; only a real content block

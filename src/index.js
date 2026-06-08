@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { dirname, basename, join } from 'path';
-import { buildConfig, parseYaml } from './config.js';
+import { buildConfig } from './config.js';
 import { parseMarkdown } from './parser/markdown.js';
 import { extractDirectives } from './parser/directive.js';
 import { buildDocument } from './renderer/document.js';
@@ -21,9 +21,8 @@ export async function convert(md, opts = {}) {
   // Config now lives in `@config`/`@doc` comment directives (frontmatter `---` is gone).
   const { configYaml, header, footer } = extractDirectives(md);
   const cfg = buildConfig(configYaml, configOverrides);
-  const yamlY = parseYaml(configYaml);
   const blocks = parseMarkdown(md);
-  return buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidText, splitTall, header, footer });
+  return buildDocument(blocks, cfg, { baseDir, keepMermaidText, splitTall, header, footer });
 }
 
 /**
