@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseYaml, get, buildConfig, parseFrontmatter } from '../src/config.js';
+import { parseYaml, get, buildConfig } from '../src/config.js';
 
 test('parseYaml: simple key-value', () => {
   const y = parseYaml('title: Hello World\nversion: 1');
@@ -87,18 +87,4 @@ test('buildConfig: image caption default true', () => {
 test('buildConfig: image caption can be disabled', () => {
   const cfg = buildConfig('image:\n  caption: false', {});
   assert.equal(cfg.image.caption, false);
-});
-
-test('parseFrontmatter: with YAML frontmatter', () => {
-  const src = '---\ntitle: Test\n---\n# Hello';
-  const { yamlRaw, body } = parseFrontmatter(src);
-  assert.equal(yamlRaw.trim(), 'title: Test');
-  assert.equal(body, '# Hello');
-});
-
-test('parseFrontmatter: no frontmatter', () => {
-  const src = '# Hello\nworld';
-  const { yamlRaw, body } = parseFrontmatter(src);
-  assert.equal(yamlRaw, '');
-  assert.equal(body, '# Hello\nworld');
 });

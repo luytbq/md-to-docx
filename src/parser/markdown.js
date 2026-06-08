@@ -3,6 +3,8 @@
  * Line-based, not CommonMark: each line is classified independently, except for
  * fenced code blocks and tables (multi-line) and bullet/numbered list continuation.
  */
+import { parseDirective, readComment } from './directive.js';
+
 export function parseMarkdown(md) {
   const lines = md.split('\n');
   const blocks = [];
@@ -16,12 +18,17 @@ export function parseMarkdown(md) {
     const trimmed = line.trim();
 
     // ── Multi-line blocks ──────────────────────────────────────────────
-    // HTML comment `<!-- … -->` (single- or multi-line). Invisible in normal markdown
-    // viewers, so drop it entirely — including the line carrying the closing `-->`.
-    if (/^\s*<!--/.test(line)) {
-      let j = i;
-      while (j < lines.length && !/-->/.test(lines[j])) j++;
-      i = j + 1; continue;
+    // HTML comment `<!-- … -->` (single- or multi-line). Ordinary comments are invisible
+    // in markdown viewers, so drop them. A `@…` directive comment is interpreted: only
+    // `@pagebreak` renders here; the document-level ones (@config/@doc/@header/@footer) are
+    // collected by extractDirectives and dropped. A line that *starts* with an inline
+    // `@style` comment is NOT consumed here — it falls through to become a paragraph so
+    // inline.js can parse the styled run.
+    if (/^\s*<!--/.test(line) && !/^\s*<!--\s*@?\/?style\b/i.test(line)) {
+      const { inner, next } = readComment(lines, i);
+      const dir = parseDirective(inner);
+      if (dir && dir.name === 'pagebreak') { listIndent.reset(); blocks.push({ type: 'pagebreak' }); }
+      i = next; continue;
     }
     if (/^```/.test(line)) {
       listIndent.reset();

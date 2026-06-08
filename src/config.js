@@ -150,11 +150,3 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
     },
   };
 }
-
-export function parseFrontmatter(src) {
-  const parts = src.split(/^---\s*$/m);
-  if (parts.length >= 3 && parts[0].trim() === '') {
-    return { yamlRaw: parts[1], body: parts.slice(2).join('---').trim() };
-  }
-  return { yamlRaw: '', body: src.trim() };
-}

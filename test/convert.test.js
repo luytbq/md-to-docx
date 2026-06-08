@@ -5,9 +5,9 @@ import { convert } from '../src/index.js';
 // Smoke test: a kitchen-sink document exercising the new features should build a
 // non-empty docx Buffer without throwing. Does NOT require mmdc — a mermaid block
 // without a renderer falls back to a code block, but hasMermaid is still reported.
-const KITCHEN_SINK = `---
+const KITCHEN_SINK = `<!-- @config
 title: Smoke Test
----
+-->
 
 # Overview
 

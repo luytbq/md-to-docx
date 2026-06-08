@@ -1,11 +1,14 @@
 import { TextRun, ExternalHyperlink, InternalHyperlink, UnderlineType } from 'docx';
 import { slugify } from './slug.js';
+import { parseArgs, parseStyleOpts } from './directive.js';
 
 // Inline markdown grammar. Alternatives are tried left-to-right; whichever named group
-// participated tells makeRuns which kind of run to emit. `**`/`__` (bold) are listed before
-// `*`/`_` (italic) so `**x**` reads as bold, not italic. The `(?<!\w)…(?!\w)` guards stop
-// `_`/`__` from matching mid-word (e.g. `my_var_name`).
+// participated tells makeRuns which kind of run to emit. The `@style` directive is listed
+// FIRST so its `<!-- … -->` delimiters win before `*`/`_`/`` ` `` touch the wrapped text.
+// `**`/`__` (bold) are listed before `*`/`_` (italic) so `**x**` reads as bold, not italic.
+// The `(?<!\w)…(?!\w)` guards stop `_`/`__` from matching mid-word (e.g. `my_var_name`).
 const INLINE_RE = new RegExp([
+  /<!--\s*@style(?<styleArgs>[^>]*?)-->(?<styleBody>[\s\S]*?)<!--\s*@?\/style\s*-->/, // @style…/style
   /\*\*(?<boldStars>[^*]+)\*\*/,                          // **bold**
   /(?<!\w)__(?<boldUnders>[^_]+)__(?!\w)/,                // __bold__
   /\*(?<italStars>[^*]+)\*/,                              // *italic*
@@ -53,7 +56,10 @@ export function makeRuns(text, base = {}, cfg, ctx = {}) {
 
     const bold = g.boldStars ?? g.boldUnders;
     const italic = g.italStars ?? g.italUnders;
-    if (bold != null)
+    if (g.styleBody != null)
+      // Recurse so markdown inside the styled span still parses; the style opts layer onto base.
+      runs.push(...makeRuns(g.styleBody, { ...base, ...parseStyleOpts(parseArgs(g.styleArgs), ctx.warnings) }, cfg, ctx));
+    else if (bold != null)
       runs.push(new TextRun({ text: bold, font: cfg.body.font, bold: true, ...base }));
     else if (italic != null)
       runs.push(new TextRun({ text: italic, font: cfg.body.font, italics: true, ...base }));

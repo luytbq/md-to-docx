@@ -1,9 +1,9 @@
----
+<!-- @config
 title: Sample Document
 body:
   font: Arial
   size: 11
----
+-->
 
 # Heading 1
 

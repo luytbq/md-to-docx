@@ -1,5 +1,7 @@
----
+<!-- @doc
 title: Kitchen Sink — md-to-docx Feature Demo
+-->
+<!-- @config
 page:
   size: A4
   margin: 2
@@ -10,19 +12,33 @@ mermaid:
   font_size: 9.5
 image:
   caption: true
-footer:
-  page_number: true
+-->
+<!-- @header left="{title}" center="Confidential" right="{date}" size=9 color=888888 border_bottom=true skip_on_first_page=true -->
+<!-- @footer
+left: "© 2026 md-to-docx"
+center: "Page {page} of {pages}"
+right: "v1.0"
+font: Arial
+size: 9
+color: "888888"
+border_top: true
+skip_on_first_page: true
+-->
 
----
+<!-- @style size=26 bold --> Kitchen Sink — md-to-docx Feature Demo <!-- /style -->
+
+<!-- @pagebreak -->
 
 # Introduction
 
-This document exercises **every** feature of `md-to-docx`: headings, inline
-formatting, tables, code blocks, mermaid diagrams, images with captions, nested
-and numbered lists, internal links, page breaks, and horizontal rules.
+This document exercises **every** feature of `md-to-docx`: a cover page, running
+header/footer, headings, inline formatting and `@style` runs, tables, code blocks,
+mermaid diagrams, images with captions, nested and numbered lists, internal links,
+page breaks, and horizontal rules.
 
 Quick navigation:
 
+- Go to [Inline Styling](#inline-styling)
 - Go to [Tables](#tables)
 - Go to [Mermaid Diagrams](#mermaid-diagrams)
 - Go to [A Tall Diagram](#a-tall-diagram)
@@ -37,16 +53,26 @@ and an [internal link back to Introduction](#introduction).
 
 Markers can mix: **bold with `code` inside**, and _italic spanning words_.
 
----
+## Inline Styling
+
+The `@style` directive styles a single run — invisible in plain markdown viewers:
+a <!-- @style color=#cc0000 bold -->critical warning<!-- /style -->, a
+<!-- @style highlight=yellow -->highlighted note<!-- /style -->, some
+<!-- @style color=blue underline -->underlined blue<!-- /style --> text, a
+<!-- @style font="Times New Roman" size=14 -->different font and size<!-- /style -->,
+and even H<!-- @style sub -->2<!-- /style -->O and E=mc<!-- @style sup -->2<!-- /style -->.
+
+Markdown still parses inside a styled run: <!-- @style color=green -->**bold and green**<!-- /style -->.
 
 ## Tables
 
-| Feature        | Status      | Notes                         |
-|:---------------|:-----------:|------------------------------:|
-| Headings       | Done        | H1–H6                         |
-| Internal links | Done        | `[text](#slug)`               |
-| Mermaid        | Done        | font-normalized               |
-| Tall slicing   | Optional    | needs ImageMagick             |
+| Feature        | Status                                              | Notes                         |
+|:---------------|:---------------------------------------------------:|------------------------------:|
+| Headings       | Done                                                | H1–H6                         |
+| Internal links | Done                                                | `[text](#slug)`               |
+| Mermaid        | Done                                                | font-normalized               |
+| Inline `@style`| <!-- @style color=green bold -->Done<!-- /style --> | styles a run, even in a cell  |
+| Tall slicing   | Optional                                            | needs ImageMagick             |
 
 A cell with a `pipe \| escaped` and an [internal link](#tables) inside it.
 
@@ -66,7 +92,7 @@ plain preformatted text
   preserves    spacing
 ```
 
-<div style="page-break-after: always"></div>
+<!-- @pagebreak -->
 
 ## Mermaid Diagrams
 

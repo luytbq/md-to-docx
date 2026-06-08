@@ -1,5 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Bookmark,
-         AlignmentType, BorderStyle, ShadingType, LevelFormat, Footer, PageNumber } from 'docx';
+         AlignmentType, BorderStyle, ShadingType, LevelFormat, Header, Footer, PageNumber,
+         Tab, TabStopType } from 'docx';
 import { makeRuns } from '../parser/inline.js';
 import { slugify } from '../parser/slug.js';
 import { mdTable } from './table.js';
@@ -21,7 +22,46 @@ function pageBreak() {
   return new Paragraph({ children: [new TextRun({ text: '', break: 1 })], pageBreakBefore: true, spacing: { after: 0 } });
 }
 
-export async function buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidText = false, splitTall = false } = {}) {
+// ── Running header/footer (3 zones + tokens) ─────────────────────────────────
+
+// Expand a zone string into TextRuns, turning {page}/{pages} into page-number fields
+// and {title}/{date} into their values; other text is literal.
+function runningRuns(text, runOpts, cfg) {
+  const out = [];
+  for (const part of String(text).split(/(\{page\}|\{pages\}|\{title\}|\{date\})/g)) {
+    if (part === '') continue;
+    if (part === '{page}')       out.push(new TextRun({ ...runOpts, children: [PageNumber.CURRENT] }));
+    else if (part === '{pages}') out.push(new TextRun({ ...runOpts, children: [PageNumber.TOTAL_PAGES] }));
+    else if (part === '{title}') out.push(new TextRun({ ...runOpts, text: cfg.title || '' }));
+    else if (part === '{date}')  out.push(new TextRun({ ...runOpts, text: new Date().toISOString().slice(0, 10) }));
+    else                         out.push(new TextRun({ ...runOpts, text: part }));
+  }
+  return out;
+}
+
+// Build a header/footer paragraph: left zone at the start, center after a center tab,
+// right after a right tab — the standard 3-zone OOXML layout.
+function runningParagraph(zones, cfg, CW) {
+  const runOpts = {
+    font:  zones.font ?? cfg.footer.font ?? cfg.body.font,
+    size:  (Number(zones.size) || cfg.footer.size || cfg.body.size) * 2,
+    color: String(zones.color ?? cfg.footer.color ?? cfg.body.color),
+  };
+  const children = [];
+  if (zones.left)   children.push(...runningRuns(zones.left, runOpts, cfg));
+  if (zones.center) children.push(new TextRun({ children: [new Tab()] }), ...runningRuns(zones.center, runOpts, cfg));
+  if (zones.right)  children.push(new TextRun({ children: [new Tab()] }), ...runningRuns(zones.right, runOpts, cfg));
+  const border = zones.border_top    ? { top:    { style: BorderStyle.SINGLE, size: 4, color: cfg.table.border } }
+               : zones.border_bottom ? { bottom: { style: BorderStyle.SINGLE, size: 4, color: cfg.table.border } }
+               : undefined;
+  return new Paragraph({
+    tabStops: [{ type: TabStopType.CENTER, position: Math.round(CW / 2) }, { type: TabStopType.RIGHT, position: CW }],
+    ...(border ? { border } : {}),
+    children,
+  });
+}
+
+export async function buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidText = false, splitTall = false, header = null, footer = null } = {}) {
   const warnings = [];
   const PAGE = PAGE_SIZES[cfg.page.size] ?? PAGE_SIZES.A4;
   const mg = typeof cfg.page.margin === 'object' ? cfg.page.margin
@@ -118,17 +158,26 @@ export async function buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidTe
 
   const bullets = Array.isArray(cfg.list.bullets) ? cfg.list.bullets : ['•', '◦', '▪'];
 
-  const sectionFooters = [];
-  if (cfg.footer.pageNumber) {
-    const footerFont  = cfg.footer.font  ?? cfg.body.font;
-    const footerSize  = (cfg.footer.size  ?? cfg.body.size) * 2;
-    const footerColor = String(cfg.footer.color ?? cfg.body.color);
-    sectionFooters.push(new Footer({
-      children: [new Paragraph({
-        alignment: AlignmentType.RIGHT,
-        children: [new TextRun({ font: footerFont, size: footerSize, color: footerColor, children: [PageNumber.CURRENT] })],
-      })],
-    }));
+  // Running header/footer. A `@header`/`@footer` directive (3 zones + tokens) wins;
+  // otherwise legacy `cfg.footer.pageNumber` renders a right-aligned page number.
+  // `skip_on_first_page` uses a Word title-page section (`titlePage`) so page 1 gets
+  // an empty `first` header/footer while later pages keep the `default` one.
+  const isTrue = v => v === true || v === 'true';
+  if (footer && footer.page_number && !footer.left && !footer.center && !footer.right) footer.right = '{page}';
+  const skipHeaderFirst = !!(header && isTrue(header.skip_on_first_page));
+  const skipFooterFirst = !!(footer && isTrue(footer.skip_on_first_page));
+  const titlePage = skipHeaderFirst || skipFooterFirst;
+  const emptyPara = () => new Paragraph({ children: [] });
+
+  let headersOpt, footersOpt;
+  if (header) {
+    headersOpt = { default: new Header({ children: [runningParagraph(header, cfg, CW)] }) };
+    if (titlePage) headersOpt.first = skipHeaderFirst ? new Header({ children: [emptyPara()] }) : new Header({ children: [runningParagraph(header, cfg, CW)] });
+  }
+  const footerZones = footer ?? (cfg.footer.pageNumber ? { right: '{page}' } : null);
+  if (footerZones) {
+    footersOpt = { default: new Footer({ children: [runningParagraph(footerZones, cfg, CW)] }) };
+    if (titlePage) footersOpt.first = skipFooterFirst ? new Footer({ children: [emptyPara()] }) : new Footer({ children: [runningParagraph(footerZones, cfg, CW)] });
   }
 
   const doc = new Document({
@@ -166,7 +215,12 @@ export async function buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidTe
         },
       ],
     },
-    sections: [{ properties: { page: { size: { width: PAGE[0], height: PAGE[1] }, margin: MG } }, children, ...(sectionFooters.length ? { footers: { default: sectionFooters[0] } } : {}) }],
+    sections: [{
+      properties: { page: { size: { width: PAGE[0], height: PAGE[1] }, margin: MG }, ...(titlePage ? { titlePage: true } : {}) },
+      children,
+      ...(headersOpt ? { headers: headersOpt } : {}),
+      ...(footersOpt ? { footers: footersOpt } : {}),
+    }],
   });
 
   const buffer = await Packer.toBuffer(doc);

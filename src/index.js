@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { dirname, basename, join } from 'path';
-import { parseFrontmatter, buildConfig, parseYaml } from './config.js';
+import { buildConfig, parseYaml } from './config.js';
 import { parseMarkdown } from './parser/markdown.js';
+import { extractDirectives } from './parser/directive.js';
 import { buildDocument } from './renderer/document.js';
 
 /**
@@ -17,11 +18,12 @@ import { buildDocument } from './renderer/document.js';
  */
 export async function convert(md, opts = {}) {
   const { baseDir = process.cwd(), config: configOverrides = {}, keepMermaidText = false, splitTall = false } = opts;
-  const { yamlRaw, body } = parseFrontmatter(md);
-  const cfg = buildConfig(yamlRaw, configOverrides);
-  const yamlY = parseYaml(yamlRaw);
-  const blocks = parseMarkdown(body);
-  return buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidText, splitTall });
+  // Config now lives in `@config`/`@doc` comment directives (frontmatter `---` is gone).
+  const { configYaml, header, footer } = extractDirectives(md);
+  const cfg = buildConfig(configYaml, configOverrides);
+  const yamlY = parseYaml(configYaml);
+  const blocks = parseMarkdown(md);
+  return buildDocument(blocks, cfg, yamlY, { baseDir, keepMermaidText, splitTall, header, footer });
 }
 
 /**
@@ -40,8 +42,8 @@ export async function convertFile(inputPath, opts = {}) {
   const baseDir = dirname(inputPath);
   const { output, config: configOverrides = {}, keepMermaidText = false, splitTall = false } = opts;
 
-  const { yamlRaw } = parseFrontmatter(md);
-  const cfg = buildConfig(yamlRaw, configOverrides);
+  const { configYaml } = extractDirectives(md);
+  const cfg = buildConfig(configYaml, configOverrides);
   const stem = basename(inputPath).replace(/\.[^.]+$/, '');
   const outputPath = output ?? join(baseDir, (cfg.outputFilename || stem) + '.docx');
 
