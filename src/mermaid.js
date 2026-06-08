@@ -2,13 +2,18 @@ import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'fs';
 import { execSync } from 'child_process';
 import { createRequire } from 'module';
 import { dirname, join } from 'path';
+import { tmpdir } from 'os';
 import { PNG } from 'pngjs';
+
+const isWindows = process.platform === 'win32';
 
 const chromeCandidates = [
   '/usr/bin/google-chrome',
   '/usr/bin/chromium-browser',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
 ];
 
 // Resolve a runnable mmdc command. Prefer an explicit override or one on PATH; otherwise
@@ -17,7 +22,7 @@ const chromeCandidates = [
 function findMmdcCmd() {
   if (process.env.MMDC_PATH) return `"${process.env.MMDC_PATH}"`;
   try {
-    const p = execSync('which mmdc', { stdio: 'pipe' }).toString().trim();
+    const p = execSync(isWindows ? 'where mmdc' : 'which mmdc', { stdio: 'pipe' }).toString().trim().split('\n')[0].trim();
     if (p) return `"${p}"`;
   } catch (_) {}
   // bundled dependency — resolve the mmdc CLI entry and run it with the current Node
@@ -52,7 +57,7 @@ function ensureInit() {
   const puppeteerConfig = { args: ['--no-sandbox', '--disable-setuid-sandbox'] };
   const chromeExe = findSystemChrome();
   if (chromeExe) puppeteerConfig.executablePath = chromeExe;
-  puppeteerCfgPath = `/tmp/_mmdoc_puppeteer_${process.pid}.json`;
+  puppeteerCfgPath = join(tmpdir(), `_mmdoc_puppeteer_${process.pid}.json`);
   writeFileSync(puppeteerCfgPath, JSON.stringify(puppeteerConfig));
 }
 
@@ -83,8 +88,8 @@ export function renderMermaid(code, scale = 2) {
     return { warning: 'mmdc not found — reinstall dependencies (npm install) or install @mermaid-js/mermaid-cli' };
   }
   const id = Math.random().toString(36).slice(2);
-  const inF = `/tmp/_mermaid_${id}.mmd`;
-  const outF = `/tmp/_mermaid_${id}.png`;
+  const inF = join(tmpdir(), `_mermaid_${id}.mmd`);
+  const outF = join(tmpdir(), `_mermaid_${id}.png`);
   writeFileSync(inF, code);
   try {
     execSync(`${mmdcCmd} -i "${inF}" -o "${outF}" --puppeteerConfigFile "${puppeteerCfgPath}" -s ${scale} --backgroundColor white`, { stdio: 'pipe' });
