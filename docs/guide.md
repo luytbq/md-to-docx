@@ -88,7 +88,7 @@ nest, e.g. `**bold with `code` inside**`.
 **External:**
 
 ```markdown
-[OnePay](https://onepay.vn)
+[google.com](https://google.com)
 ```
 
 **Internal** (link to a heading by its slug):
