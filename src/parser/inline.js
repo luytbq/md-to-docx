@@ -37,24 +37,28 @@ export function makeRuns(text, base = {}, cfg, ctx = {}) {
   const plain = t => new TextRun({ text: t, font: cfg.body.font, ...base });
   if (!text) return [plain('')];
 
-  // `<br>` → manual line break. Common in table cells, where a literal newline can't
-  // exist (one row = one source line). Split on it and recurse; each gap inserts a
-  // break run, so inline markdown inside each segment is still parsed normally.
-  if (/<br\s*\/?>/i.test(text)) {
-    const runs = [];
-    text.split(/<br\s*\/?>/i).forEach((seg, i) => {
+  // `<br>`/`<br/>` → manual line break. Emitted from *plain* text only (not pre-split at the top),
+  // so a `<br>` inside an @style span survives — the span is matched as one token first and its
+  // body recurses through here. Common in table cells, where a literal newline can't exist.
+  const pushPlain = t => {
+    t.split(/<br\s*\/?>/i).forEach((seg, i) => {
       if (i > 0) runs.push(new TextRun({ break: 1 }));
-      if (seg) runs.push(...makeRuns(seg, base, cfg, ctx));
+      if (seg) runs.push(plain(seg));
     });
-    return runs;
-  }
+  };
+
+  // `<!-- @style args /-->` is a *self-closing* style tag: it styles the rest of the line, no
+  // explicit `<!-- /style -->` needed. Rewrite it into the wrapping form (drop the `/`, append a
+  // close at the end) so the INLINE_RE `@style` alternative handles it; the recursion on the styled
+  // body normalizes any further self-close tags nested inside.
+  text = expandSelfCloseStyle(text);
 
   const runs = [];
   let pos = 0; // index just past the previously emitted slice
 
   for (const m of text.matchAll(INLINE_RE)) {
     const g = m.groups;
-    if (m.index > pos) runs.push(plain(text.slice(pos, m.index))); // plain text before this token
+    if (m.index > pos) pushPlain(text.slice(pos, m.index)); // plain text before this token
 
     const bold = g.boldStars ?? g.boldUnders;
     const italic = g.italStars ?? g.italUnders;
@@ -77,8 +81,17 @@ export function makeRuns(text, base = {}, cfg, ctx = {}) {
 
     pos = m.index + m[0].length;
   }
-  if (pos < text.length) runs.push(plain(text.slice(pos)));
+  if (pos < text.length) pushPlain(text.slice(pos));
   return runs;
+}
+
+// Rewrite the first self-closing `<!-- @style args /-->` into the wrapping `@style…/style` form,
+// with the close appended at the end of the text (style applies to the rest of the line).
+function expandSelfCloseStyle(text) {
+  const m = text.match(/<!--\s*@style\b([^>]*?)\/-->/i);
+  if (!m) return text;
+  const open = `<!-- @style ${m[1].trim()} -->`;
+  return text.slice(0, m.index) + open + text.slice(m.index + m[0].length) + '<!-- /style -->';
 }
 
 // Resolve a `{path}` variable token to its string value. `page`/`pages` are page-number

@@ -111,7 +111,10 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       children.push(new Paragraph(hPara));
 
     } else if (b.type === 'paragraph') {
-      children.push(new Paragraph({ children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: cfg.body.spacingAfter * 20 } }));
+      const pAlign = b.align === 'center' ? AlignmentType.CENTER : b.align === 'right' ? AlignmentType.RIGHT : b.align === 'left' ? AlignmentType.LEFT : undefined;
+      const pPara = { children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: cfg.body.spacingAfter * 20 } };
+      if (pAlign) pPara.alignment = pAlign;
+      children.push(new Paragraph(pPara));
 
     } else if (b.type === 'bullet') {
       children.push(new Paragraph({ numbering: { reference: 'bullet', level: b.indent }, children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: 40 } }));

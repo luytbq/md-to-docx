@@ -3,7 +3,7 @@
  * Line-based, not CommonMark: each line is classified independently, except for
  * fenced code blocks and tables (multi-line) and bullet/numbered list continuation.
  */
-import { parseDirective, readComment } from './directive.js';
+import { parseDirective, parseArgs, readComment } from './directive.js';
 
 export function parseMarkdown(md) {
   const lines = md.split('\n');
@@ -29,6 +29,43 @@ export function parseMarkdown(md) {
       const dir = parseDirective(inner);
       if (dir && dir.name === 'pagebreak') { listIndent.reset(); blocks.push({ type: 'pagebreak' }); }
       i = next; continue;
+    }
+    // Self-close `<!-- @style … /-->` alone on its own line → styles the NEXT line (lets you keep
+    // a long title on its own line, with the directive on the line above). The bare tag line would
+    // otherwise be eaten as a stray HTML tag. `align` lifts to that paragraph.
+    const scOwnLine = line.match(/^\s*<!--\s*@style\b([^>]*?)\/-->\s*$/i);
+    if (scOwnLine) {
+      listIndent.reset();
+      const args = scOwnLine[1].trim();
+      const next = lines[i + 1];
+      if (next && next.trim()) {
+        const pblock = { type: 'paragraph', text: `<!-- @style ${args} -->${next.trim()}<!-- /style -->` };
+        const a = parseArgs(args).align;
+        if (a === 'center' || a === 'right' || a === 'left') pblock.align = a;
+        blocks.push(pblock); i += 2; continue;
+      }
+      i++; continue;   // nothing to style on the next line → drop the bare tag
+    }
+    // Multi-line inline-style block: `<!-- @style … -->` opening on its own line, body on the
+    // following line(s), closed by `<!-- /style -->`. (The block parser otherwise eats the bare
+    // opening line as a stray HTML tag.) Collapse it into the single-line `@style…/style` form so
+    // inline.js styles the body, and lift `align` to the paragraph. The single-line form, where the
+    // whole thing fits on one line, is handled at the paragraph fall-through below.
+    // (A self-close `… /-->` is NOT a multi-line block — its args end with `/`; let it fall through
+    // to the paragraph handler so inline.js styles the rest of the line.)
+    const styleOpen = line.match(/^\s*<!--\s*@style\b([^>]*?)-->(.*)$/i);
+    if (styleOpen && !styleOpen[1].trimEnd().endsWith('/') && !/<!--\s*@?\/style\s*-->/.test(line)) {
+      listIndent.reset();
+      const args = styleOpen[1];
+      const bodyParts = [styleOpen[2]];
+      let j = i + 1;
+      while (j < lines.length && !/<!--\s*@?\/style\s*-->/.test(lines[j])) bodyParts.push(lines[j++]);
+      if (j < lines.length) bodyParts.push(lines[j].replace(/<!--\s*@?\/style\s*-->[\s\S]*$/i, ''));
+      const body = bodyParts.join(' ').replace(/\s+/g, ' ').trim();
+      const pblock = { type: 'paragraph', text: `<!-- @style${args}-->${body}<!-- /style -->` };
+      const a = parseArgs(args).align;
+      if (a === 'center' || a === 'right' || a === 'left') pblock.align = a;
+      blocks.push(pblock); i = j + 1; continue;
     }
     if (/^```/.test(line)) {
       listIndent.reset();
@@ -84,7 +121,16 @@ export function parseMarkdown(md) {
       i++; continue;
     }
 
-    blocks.push({ type: 'paragraph', text: trimmed });
+    // Paragraph-level alignment: a line that *starts* with an inline `@style` carrying an
+    // `align` arg centers/right-aligns the whole paragraph (the run-level opts still apply via
+    // inline.js, which ignores `align`). Lets authors make a centered "title" without a heading.
+    const pblock = { type: 'paragraph', text: trimmed };
+    const lead = trimmed.match(/^<!--\s*@style\b([^>]*?)-->/i);
+    if (lead) {
+      const a = parseArgs(lead[1]).align;
+      if (a === 'center' || a === 'right' || a === 'left') pblock.align = a;
+    }
+    blocks.push(pblock);
     i++;
   }
   return blocks;

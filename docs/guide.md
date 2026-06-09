@@ -115,7 +115,16 @@ table cells, where a literal newline cannot exist:
 
 Inline markdown is still parsed within each segment, and `<br><br>` yields two
 consecutive breaks. A line that is *only* `<br>` (outside a table) is treated as
-a blank paragraph.
+a blank paragraph. `<br>` also works **inside** an `@style` span
+([§3.3](#33-style--inline-run-styling)) — e.g. a multi-line styled block can put
+`<br>` on its own line to add blank lines while keeping the style:
+
+```markdown
+<!-- @style align=right size=12 color=f00 -->
+A right-aligned, red note
+<br><br>
+<!-- /style -->
+```
 
 ### 2.5 Lists
 
@@ -267,7 +276,7 @@ Directive summary:
 |:----------|:------|:--------|:--------|
 | `@config` | block | document configuration | [3.2](#32-config--doc--document-configuration) |
 | `@doc` | block | document metadata → `doc.*` variables | [3.2](#32-config--doc--document-configuration) |
-| `@style … /style` | inline, paired | style one text run | [3.3](#33-style--inline-run-styling) |
+| `@style … /style` | inline, paired, or self‑close `/-->` | style a text run (or align a paragraph) | [3.3](#33-style--inline-run-styling) |
 | `@header` / `@footer` | inline or block | running header / footer | [3.4](#34-header--footer--running-header--footer) |
 | `@pagebreak` | inline | page break | [3.5](#35-pagebreak) |
 
@@ -306,7 +315,7 @@ Reference it anywhere as `{doc.title}`, `{doc.subtitle}`, …
 The full set of styling keys is in [§4](#4-configuration-reference).
 
 > **Cover pages** are not a directive. Write one as ordinary body content — e.g.
-> a centered `@style` title — followed by a `@pagebreak`, and use
+> a centered `@style` title ([§3.3](#33-style--inline-run-styling)) — followed by a `@pagebreak`, and use
 > `skip_on_first_page` ([§3.4](#34-header--footer--running-header--footer)) to keep
 > the header/footer off it.
 
@@ -323,6 +332,27 @@ and H<!-- @style sub -->2<!-- /style -->O.
 
 Closing tag: `<!-- /style -->` (or `<!-- @/style -->`).
 
+**Three forms** — pick whichever reads best:
+
+```markdown
+<!-- the wrapping form: explicit close, styles exactly the wrapped text -->
+A <!-- @style color=red -->wrapped run<!-- /style --> here.
+
+<!-- multi-line wrapping: open / body / close on separate lines (the body
+     lines are joined with a space into one paragraph) -->
+<!-- @style align=center size=28 bold -->
+OPS_20260309_134 — a long centered title
+<!-- /style -->
+
+<!-- self-close ( /--> ): styles the REST OF THE LINE, no close tag needed -->
+Price: <!-- @style color=red bold /-->1,000,000 VND
+
+<!-- self-close alone on its own line: styles the NEXT line (handy for a long
+     title you want to keep on a line of its own) -->
+<!-- @style align=center size=26 bold /-->
+OPS_20260309_134 SHOPEEPAY/ZALOPAY — long title on its own line
+```
+
 | Argument | Effect | Notes |
 |:---------|:-------|:------|
 | `color=…` | text color | hex `#cc0000` / `cc0000` / `abc`, or a [named color](#named-colors) |
@@ -336,9 +366,20 @@ Closing tag: `<!-- /style -->` (or `<!-- @/style -->`).
 | `sub` | subscript | flag |
 | `font="…"` | font family | quote if it contains spaces |
 | `size=N` | font size in pt | |
+| `align=center` \| `right` \| `left` | **paragraph** alignment | only when the `@style` *starts the line* — centers/right‑aligns the whole paragraph. Combine with `size`/`bold` to make a title without using a heading. |
+
+Most args style the text *run*; **`align` is the exception** — it aligns the
+whole paragraph, so it only takes effect when the `@style` (wrapping or
+self‑close) is the first thing on the line. Used elsewhere it is ignored.
+
+```markdown
+<!-- a centered, large, bold title — no heading needed -->
+<!-- @style align=center size=28 bold /-->Document Title
+```
 
 Invalid values (bad color, non‑numeric size) are skipped, and a `style` warning
-is emitted. An unclosed `@style` renders literally.
+is emitted. An unclosed wrapping `@style` renders literally (a self‑close `/-->`
+never needs a close).
 
 <a id="named-colors"></a>
 **Named colors:** `black`, `white`, `red`, `green`, `blue`, `yellow`, `orange`,

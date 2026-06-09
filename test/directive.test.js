@@ -16,12 +16,21 @@ const isBold = r => {
   const rpr = r.root.find(c => c && c.rootKey === 'w:rPr');
   return !!(rpr && rpr.root.some(c => c && c.rootKey === 'w:b'));
 };
+const isBreak = r => r.root.some(c => c && c.rootKey === 'w:br');
 const colorOf = r => {
   const rpr = r.root.find(c => c && c.rootKey === 'w:rPr');
   if (!rpr) return null;
   const col = rpr.root.find(c => c && c.rootKey === 'w:color');
   if (!col) return null;
   const attr = col.root.find(c => c && c.rootKey === '_attr');
+  return attr ? attr.root.val : null;
+};
+const sizeOf = r => {
+  const rpr = r.root.find(c => c && c.rootKey === 'w:rPr');
+  if (!rpr) return null;
+  const sz = rpr.root.find(c => c && c.rootKey === 'w:sz');
+  if (!sz) return null;
+  const attr = sz.root.find(c => c && c.rootKey === '_attr');
   return attr ? attr.root.val : null;
 };
 
@@ -209,10 +218,105 @@ test('makeRuns: @style works inside a table-cell context (no literal newline)', 
   assert.ok(runs.find(r => runText(r) === 'hi' && colorOf(r) === 'FF0000'));
 });
 
+// ── @style paragraph alignment ───────────────────────────────────────────────
+
+test('parseMarkdown: leading @style with align sets paragraph align', () => {
+  const blocks = parseMarkdown('<!-- @style align=center size=28 bold -->Title<!-- /style -->');
+  assert.equal(blocks[0].type, 'paragraph');
+  assert.equal(blocks[0].align, 'center');
+});
+
+test('parseMarkdown: @style align=right is honored', () => {
+  const blocks = parseMarkdown('<!-- @style align=right -->x<!-- /style -->');
+  assert.equal(blocks[0].align, 'right');
+});
+
+test('parseMarkdown: @style without align leaves paragraph unaligned', () => {
+  const blocks = parseMarkdown('<!-- @style color=red -->x<!-- /style -->');
+  assert.equal(blocks[0].align, undefined);
+});
+
+// ── multi-line @style block ───────────────────────────────────────────────────
+
+test('parseMarkdown: multi-line @style collapses into one aligned paragraph', () => {
+  const blocks = parseMarkdown('<!-- @style align=center bold -->\nLine one\nLine two\n<!-- /style -->');
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].type, 'paragraph');
+  assert.equal(blocks[0].align, 'center');
+  assert.match(blocks[0].text, /Line one Line two/);   // body lines joined with a space
+  assert.match(blocks[0].text, /@style.*\/style/s);    // collapsed to the single-line wrapping form
+});
+
+test('makeRuns: multi-line @style body is styled', () => {
+  const blocks = parseMarkdown('<!-- @style color=red -->\nhello\n<!-- /style -->');
+  const runs = makeRuns(blocks[0].text, {}, cfg);
+  assert.ok(runs.find(r => runText(r) === 'hello' && colorOf(r) === 'FF0000'));
+});
+
+test('makeRuns: <br> inside an @style span becomes a break and keeps the style', () => {
+  const runs = makeRuns('<!-- @style color=red -->a<br>b<!-- /style -->', {}, cfg);
+  assert.equal(colorOf(runs.find(r => runText(r) === 'a')), 'FF0000');
+  assert.equal(colorOf(runs.find(r => runText(r) === 'b')), 'FF0000');
+  assert.ok(runs.some(isBreak));
+});
+
+test('parseMarkdown: multi-line @style with <br> lines keeps the breaks (not collapsed)', () => {
+  const blocks = parseMarkdown('<!-- @style color=red -->\nLine\n<br><br>\n<!-- /style -->');
+  const runs = makeRuns(blocks[0].text, {}, cfg);
+  assert.equal(colorOf(runs.find(r => runText(r)?.trim() === 'Line')), 'FF0000');
+  assert.equal(runs.filter(isBreak).length, 2);
+});
+
+// ── self-closing @style (styles the rest of the line) ─────────────────────────
+
+test('makeRuns: self-close @style styles the rest of the line', () => {
+  const runs = makeRuns('a <!-- @style color=red /-->b c', {}, cfg);
+  assert.equal(runText(runs[0]), 'a ');
+  assert.equal(colorOf(runs[0]), null);
+  assert.ok(runs.find(r => runText(r) === 'b c' && colorOf(r) === 'FF0000'));
+});
+
+test('makeRuns: self-close @style applies bold + size', () => {
+  const runs = makeRuns('<!-- @style size=28 bold /-->hello', {}, cfg);
+  const h = runs.find(r => runText(r) === 'hello');
+  assert.ok(isBold(h));
+  assert.equal(sizeOf(h), 56);   // 28pt → 56 half-points
+});
+
+test('makeRuns: chained self-close @style overrides from its point onward', () => {
+  const runs = makeRuns('<!-- @style color=blue /-->x <!-- @style color=red /-->y', {}, cfg);
+  assert.equal(colorOf(runs.find(r => runText(r) === 'x ')), '0000FF');
+  assert.equal(colorOf(runs.find(r => runText(r) === 'y')), 'FF0000');
+});
+
+test('parseMarkdown: leading self-close @style sets paragraph align and is not a block', () => {
+  const blocks = parseMarkdown('<!-- @style align=center size=28 /-->Title');
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].type, 'paragraph');
+  assert.equal(blocks[0].align, 'center');
+});
+
+test('parseMarkdown: self-close @style alone on a line styles the next line', () => {
+  const blocks = parseMarkdown('<!-- @style align=center size=26 bold /-->\nLong Title Here\n\nbody');
+  assert.equal(blocks[0].type, 'paragraph');
+  assert.equal(blocks[0].align, 'center');
+  assert.match(blocks[0].text, /Long Title Here/);
+  const t = makeRuns(blocks[0].text, {}, cfg).find(r => runText(r) === 'Long Title Here');
+  assert.ok(isBold(t));
+  assert.equal(sizeOf(t), 52);   // 26pt → 52 half-points
+  // the line after the title is a separate, ordinary paragraph
+  assert.ok(blocks.find(b => b.type === 'paragraph' && b.text === 'body' && b.align === undefined));
+});
+
 // ── integration ──────────────────────────────────────────────────────────────
 
 test('convert: @config title builds a non-empty buffer', async () => {
   const { buffer } = await convert('<!-- @config\ntitle: T\n-->\n# H\n\nbody');
+  assert.ok(buffer.length > 0);
+});
+
+test('convert: self-close @style title builds a non-empty buffer', async () => {
+  const { buffer } = await convert('<!-- @style align=center size=28 bold /-->My Title\n\nbody');
   assert.ok(buffer.length > 0);
 });
 
