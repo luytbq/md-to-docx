@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>md-to-docx — Architecture Review</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: 'neutral' });</script>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; }
+  .badge-strong   { background: #16a34a; color: #fff; }
+  .badge-explore  { background: #d97706; color: #fff; }
+  .badge-speculative { background: #6b7280; color: #fff; }
+  .card { border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; margin-bottom: 2rem; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .card-header { padding: 1rem 1.5rem; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: .75rem; }
+  .card-body { padding: 1.5rem; }
+  .diagram-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem; }
+  @media (max-width: 780px) { .diagram-grid { grid-template-columns: 1fr; } }
+  .diagram-box { background: #f3f4f6; border-radius: 8px; padding: 1rem; font-size: .82rem; }
+  .diagram-box h4 { font-weight: 600; margin-bottom: .75rem; color: #374151; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+  .node { border: 1.5px solid #9ca3af; background: #fff; border-radius: 6px; padding: .3rem .7rem; display: inline-block; font-family: monospace; font-size: .8rem; margin: 2px; }
+  .node.hot { border-color: #ef4444; background: #fef2f2; }
+  .node.ok  { border-color: #22c55e; background: #f0fdf4; }
+  .node.warn{ border-color: #f59e0b; background: #fffbeb; }
+  .arrow { color: #6b7280; font-size: .9rem; margin: 0 .3rem; }
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem; margin: .4rem 0; }
+  .layer { background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: .5rem .75rem; margin: .25rem 0; }
+  .layer-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: #9ca3af; font-weight: 600; margin-bottom: .25rem; }
+  .cross { border: 2px dashed #ef4444; border-radius: 6px; padding: .3rem .5rem; font-size: .75rem; color: #ef4444; background: #fef2f2; }
+  pre.snippet { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 1rem; font-size: .75rem; overflow-x: auto; }
+  .section-title { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: #6b7280; margin-bottom: .4rem; margin-top: 1.2rem; }
+  ul.detail { list-style: disc; padding-left: 1.5rem; }
+  ul.detail li { margin-bottom: .35rem; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800 p-6 max-w-5xl mx-auto">
+
+<div class="mb-8">
+  <h1 class="text-2xl font-bold text-gray-900">md-to-docx — Architecture Review</h1>
+  <p class="text-gray-500 mt-1 text-sm">2026-06-10 · 4 candidates · vocabulary from <code>LANGUAGE.md</code></p>
+</div>
+
+<!-- ─── Overview diagram ─── -->
+<div class="card mb-8">
+  <div class="card-header"><span class="font-semibold text-gray-700">Pipeline at a glance</span></div>
+  <div class="card-body">
+    <div class="mermaid">
+flowchart LR
+  MD["markdown\nstring"]
+  ED["extractDirectives\ndirective.js"]
+  BC["buildConfig\nconfig.js"]
+  BV["buildVariables\nindex.js"]
+  PM["parseMarkdown\nparser/markdown.js"]
+  BD["buildDocument\nrenderer/document.js"]
+  BUF["docx Buffer"]
+  MD --> ED
+  ED --> BC
+  ED --> BV
+  MD --> PM
+  BC --> BD
+  BV --> BD
+  PM --> BD
+  BD --> BUF
+    </div>
+    <p class="text-sm text-gray-500 mt-2">Two-stage pipeline: <strong>parse</strong> (directives + blocks) → <strong>render</strong> (config + document). The dashed candidates below identify friction in the seams between these stages.</p>
+  </div>
+</div>
+
+<!-- ─── CANDIDATE 1 ─── -->
+<div class="card">
+  <div class="card-header">
+    <span class="badge-strong text-xs font-bold px-2 py-1 rounded">Strong</span>
+    <span class="font-semibold text-gray-900">1 — <code>extractDirectives</code> called twice in <code>convertFile</code></span>
+    <span class="text-xs text-gray-400 ml-auto">src/index.js:65–70</span>
+  </div>
+  <div class="card-body">
+
+    <p class="section-title">Files</p>
+    <p class="text-sm"><code>src/index.js</code></p>
+
+    <p class="section-title">Problem</p>
+    <p class="text-sm"><code>convertFile</code> calls <code>extractDirectives(md)</code> at line 65 just to get <code>cfg.outputFilename</code> for the output path. Then it calls <code>convert(md, …)</code>, which calls <code>extractDirectives</code> a <em>second</em> time internally. The markdown is parsed for directives twice per conversion. This is a shallow seam: the function that owns I/O (<code>convertFile</code>) needs information that only the deeper <code>convert</code> function computes — so it reaches in and computes it early, then throws the result away.</p>
+    <p class="text-sm mt-2">The deeper risk: the two calls must always agree. Any stateful directive or a future change that makes parsing non-idempotent silently produces two different config objects. There is no test that catches this divergence.</p>
+
+    <p class="section-title">Solution</p>
+    <p class="text-sm">Have <code>convert()</code> return <code>outputFilename</code> (already computed from <code>cfg</code> inside it) in its result object alongside <code>buffer</code>, <code>warnings</code>, and <code>meta</code>. <code>convertFile</code> then resolves the output path from the single conversion result — one parse, one source of truth.</p>
+
+    <div class="diagram-grid">
+      <div class="diagram-box">
+        <h4>Before — two parses</h4>
+        <div class="flow">
+          <span class="node hot">convertFile</span>
+        </div>
+        <div class="flow" style="padding-left:1.5rem">
+          <span class="node hot">extractDirectives ①</span><span class="arrow">→</span><span class="node">cfg.outputFilename</span>
+        </div>
+        <div class="flow" style="padding-left:1.5rem">
+          <span class="node">convert(md)</span>
+        </div>
+        <div class="flow" style="padding-left:3rem">
+          <span class="node hot">extractDirectives ②</span><span class="arrow">→</span><span class="node">cfg + vars + header + footer</span>
+        </div>
+        <p class="text-xs text-red-500 mt-2">① and ② must always agree — no guarantee.</p>
+      </div>
+      <div class="diagram-box">
+        <h4>After — single parse</h4>
+        <div class="flow">
+          <span class="node ok">convertFile</span>
+        </div>
+        <div class="flow" style="padding-left:1.5rem">
+          <span class="node ok">convert(md) → { buffer, outputFilename, warnings, meta }</span>
+        </div>
+        <div class="flow" style="padding-left:3rem">
+          <span class="node ok">extractDirectives ①</span><span class="arrow">→</span><span class="node">cfg + vars + header + footer + outputFilename</span>
+        </div>
+        <p class="text-xs text-green-600 mt-2">One parse. <code>convertFile</code> just uses the result.</p>
+      </div>
+    </div>
+
+    <p class="section-title">Benefits</p>
+    <ul class="detail text-sm">
+      <li><strong>Locality</strong>: all directive-parsing knowledge lives in one place (inside <code>convert</code>). <code>convertFile</code> becomes a thin I/O wrapper with no config knowledge.</li>
+      <li><strong>Leverage</strong>: future callers of <code>convert()</code> get the resolved output filename for free — useful for CLI tools or programmatic use where the caller wants to know what the file would have been named.</li>
+      <li><strong>Testability</strong>: a test for the output filename now only needs to call <code>convert()</code> — no file I/O, no <code>convertFile</code>.</li>
+    </ul>
+
+    <p class="section-title">Code sketch</p>
+    <pre class="snippet">// src/index.js — convert() returns outputFilename
+export async function convert(md, opts = {}) {
+  const { configYaml, docYaml, header, footer } = extractDirectives(md);
+  const cfg = buildConfig(configYaml, configOverrides);
+  // …
+  const { buffer, warnings, meta } = await buildDocument(…);
+  return { buffer, warnings, meta, outputFilename: cfg.outputFilename };
+}
+
+// convertFile becomes a thin wrapper
+export async function convertFile(inputPath, opts = {}) {
+  const md = readFileSync(inputPath, 'utf8');
+  const { buffer, warnings, meta, outputFilename } = await convert(md, { … });
+  const stem = basename(inputPath).replace(/\.[^.]+$/, '');
+  const outputPath = opts.output ?? join(dirname(inputPath), (outputFilename || stem) + '.docx');
+  writeFileSync(outputPath, buffer);
+  return { outputPath, warnings, meta };
+}</pre>
+  </div>
+</div>
+
+<!-- ─── CANDIDATE 2 ─── -->
+<div class="card">
+  <div class="card-header">
+    <span class="badge-explore text-xs font-bold px-2 py-1 rounded">Worth exploring</span>
+    <span class="font-semibold text-gray-900">2 — PNG utilities buried inside <code>src/mermaid.js</code></span>
+    <span class="text-xs text-gray-400 ml-auto">src/mermaid.js · src/renderer/image.js</span>
+  </div>
+  <div class="card-body">
+
+    <p class="section-title">Files</p>
+    <p class="text-sm"><code>src/mermaid.js</code>, <code>src/renderer/image.js</code></p>
+
+    <p class="section-title">Problem</p>
+    <p class="text-sm"><code>src/mermaid.js</code> bundles three distinct capabilities: <strong>(a)</strong> mermaid-to-PNG rendering (mmdc subprocess, puppeteer config, Chrome detection), <strong>(b)</strong> PNG/JPEG dimension reading (<code>pngDims</code>), and <strong>(c)</strong> tall-image slicing (<code>sliceTall</code>). The last two are pure image utilities with no dependency on mermaid at all.</p>
+    <p class="text-sm mt-2">The naming confusion shows up immediately: <code>src/renderer/image.js</code> imports <code>pngDims</code> from <code>../mermaid.js</code>. A reader following the module graph sees an image renderer depending on a mermaid renderer — a misleading signal. Apply the deletion test to <code>pngDims</code> inside <code>mermaid.js</code>: delete it from there and its complexity doesn't vanish — it reappears in callers. But it's misnamed, not misplaced-complexity. The seam is in the wrong place.</p>
+
+    <p class="section-title">Solution</p>
+    <p class="text-sm">Extract <code>pngDims</code> and <code>sliceTall</code> into <code>src/image-utils.js</code>. <code>mermaid.js</code> imports from there; so does <code>renderer/image.js</code>. Each module now names what it does.</p>
+
+    <div class="diagram-grid">
+      <div class="diagram-box">
+        <h4>Before — mixed module</h4>
+        <div class="layer">
+          <div class="layer-label">src/mermaid.js</div>
+          <div class="flow">
+            <span class="node warn">renderMermaid</span>
+            <span class="node warn">pngDims</span>
+            <span class="node warn">sliceTall</span>
+          </div>
+        </div>
+        <div class="flow mt-2">
+          <span class="node">renderer/image.js</span><span class="arrow">→</span>
+          <span class="cross">imports pngDims<br>from mermaid.js</span>
+        </div>
+      </div>
+      <div class="diagram-box">
+        <h4>After — clear seams</h4>
+        <div class="layer">
+          <div class="layer-label">src/image-utils.js (new)</div>
+          <div class="flow">
+            <span class="node ok">pngDims</span>
+            <span class="node ok">sliceTall</span>
+          </div>
+        </div>
+        <div class="layer mt-1">
+          <div class="layer-label">src/mermaid.js</div>
+          <div class="flow"><span class="node ok">renderMermaid</span></div>
+          <div class="flow" style="padding-left:.5rem; font-size:.75rem; color:#6b7280">imports from image-utils.js</div>
+        </div>
+        <div class="flow mt-2">
+          <span class="node ok">renderer/image.js</span><span class="arrow">→</span>
+          <span class="node ok">imports pngDims<br>from image-utils.js</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-title">Benefits</p>
+    <ul class="detail text-sm">
+      <li><strong>Locality</strong>: PNG dimension logic and image slicing are in one named place. Bugs in <code>pngDims</code> are found and fixed without touching mermaid rendering.</li>
+      <li><strong>Testability</strong>: <code>pngDims</code> and <code>sliceTall</code> can be unit-tested with a fixture PNG buffer, no mermaid subprocess, no puppeteer.</li>
+      <li><strong>Leverage</strong>: any future block type that needs image sizing (e.g. embedded SVGs) imports from <code>image-utils</code>, not from an unrelated module.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ─── CANDIDATE 3 ─── -->
+<div class="card">
+  <div class="card-header">
+    <span class="badge-explore text-xs font-bold px-2 py-1 rounded">Worth exploring</span>
+    <span class="font-semibold text-gray-900">3 — <code>parseYaml</code> housed in <code>config.js</code>, imported by the parser layer</span>
+    <span class="text-xs text-gray-400 ml-auto">src/config.js · src/parser/directive.js</span>
+  </div>
+  <div class="card-body">
+
+    <p class="section-title">Files</p>
+    <p class="text-sm"><code>src/config.js</code>, <code>src/parser/directive.js</code></p>
+
+    <p class="section-title">Problem</p>
+    <p class="text-sm"><code>config.js</code> is the configuration layer — it defines defaults, merges overrides, and returns the fully-resolved config object. But it also houses <code>parseYaml</code>, a general-purpose mini-YAML parser. Because <code>parseYaml</code> lives in <code>config.js</code>, the parser layer module <code>parser/directive.js</code> must import from the config layer — a direction that goes <em>against</em> the natural dependency flow (parser should be below config, not importing from it).</p>
+    <p class="text-sm mt-2">In addition, <code>src/index.js</code> imports <code>parseYaml</code> from <code>config.js</code> inside <code>buildVariables</code> — so three different modules reach into <code>config.js</code> for the YAML parser. Apply the deletion test to <code>parseYaml</code> inside <code>config.js</code>: delete it and the parser/YAML complexity reappears in three callers, not zero. The module <em>is</em> earning its keep — it just lives in the wrong file.</p>
+
+    <p class="section-title">Solution</p>
+    <p class="text-sm">Extract <code>parseYaml</code> (and the helper <code>get</code>) into <code>src/yaml.js</code>. <code>config.js</code> imports from there; so do <code>directive.js</code> and <code>index.js</code>. The config layer's interface narrows to what it actually owns: config building and variable resolution.</p>
+
+    <div class="diagram-grid">
+      <div class="diagram-box">
+        <h4>Before — upward dependency</h4>
+        <div class="layer">
+          <div class="layer-label">Config layer</div>
+          <div class="flow">
+            <span class="node warn">config.js</span>
+            <span class="node warn" style="font-size:.73rem">parseYaml get resolveVar buildConfig</span>
+          </div>
+        </div>
+        <div class="flow mt-2" style="align-items:flex-start">
+          <div style="display:flex;flex-direction:column;gap:.3rem">
+            <div class="flow">
+              <span class="node">parser/directive.js</span><span class="arrow">↑ imports parseYaml</span><span class="cross">layer violation</span>
+            </div>
+            <div class="flow">
+              <span class="node">index.js</span><span class="arrow">↑ imports parseYaml</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="diagram-box">
+        <h4>After — clean layers</h4>
+        <div class="layer">
+          <div class="layer-label">src/yaml.js (new, foundation)</div>
+          <div class="flow"><span class="node ok">parseYaml</span><span class="node ok">get</span></div>
+        </div>
+        <div class="layer mt-1">
+          <div class="layer-label">config.js (narrowed)</div>
+          <div class="flow"><span class="node ok">buildConfig</span><span class="node ok">resolveVar</span></div>
+          <div style="font-size:.75rem;color:#6b7280;margin-top:.25rem">imports from yaml.js ↓</div>
+        </div>
+        <div class="flow mt-2">
+          <span class="node ok">parser/directive.js</span><span class="arrow">→</span><span class="node ok">imports from yaml.js ↓</span>
+        </div>
+        <div class="flow">
+          <span class="node ok">index.js</span><span class="arrow">→</span><span class="node ok">imports from yaml.js ↓</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-title">Benefits</p>
+    <ul class="detail text-sm">
+      <li><strong>Locality</strong>: bugs in the custom YAML parser are isolated to <code>yaml.js</code>. The config layer and parser layer can both be understood without reading each other.</li>
+      <li><strong>Testability</strong>: the existing <code>config.test.js</code> YAML parser tests can be moved to target <code>yaml.js</code> directly with no config ceremony.</li>
+      <li><strong>Leverage</strong>: any future module that needs to parse YAML bodies (e.g. a schema validator) imports from one named place.</li>
+    </ul>
+    <p class="text-sm mt-2 text-gray-500">This is a pure rename/move with no behavior change — a low-risk refactor that pays back in readability.</p>
+  </div>
+</div>
+
+<!-- ─── CANDIDATE 4 ─── -->
+<div class="card">
+  <div class="card-header">
+    <span class="badge-speculative text-xs font-bold px-2 py-1 rounded">Speculative</span>
+    <span class="font-semibold text-gray-900">4 — <code>buildDocument</code> as a god function</span>
+    <span class="text-xs text-gray-400 ml-auto">src/renderer/document.js</span>
+  </div>
+  <div class="card-body">
+
+    <p class="section-title">Files</p>
+    <p class="text-sm"><code>src/renderer/document.js</code></p>
+
+    <p class="section-title">Problem</p>
+    <p class="text-sm"><code>buildDocument</code> is a 229-line function that does: page geometry, heading anchor pre-pass, block-type dispatch, numbered list instance tracking, running header/footer assembly, docx styles definition, and final <code>Packer.toBuffer</code> call. The interface is shallow in one specific sense: it's impossible to test a single block-type render in isolation — every test must call the full document builder and inspect the output buffer.</p>
+    <p class="text-sm mt-2">Apply the deletion test: delete <code>buildDocument</code> and the complexity doesn't spread — the individual block renderers (<code>table.js</code>, <code>code.js</code>, <code>image.js</code>, <code>renderer/mermaid.js</code>) already exist as separate modules. The dispatch loop and document assembly are the things that have no seam.</p>
+    <p class="text-sm mt-2"><strong>Why speculative:</strong> the existing tests are integration-level and work fine for a library of this size. The friction only bites when you want to test a new block type's output format without building an entire document. At the current scale this is a marginal gain.</p>
+
+    <p class="section-title">Solution sketch</p>
+    <p class="text-sm">Extract the block dispatch into a <code>renderBlocks(blocks, cfg, ctx, layoutCtx)</code> function that returns the <code>children</code> array. <code>buildDocument</code> handles only geometry, styles, and <code>Packer</code>. Each block renderer is then testable via <code>renderBlocks</code> without a full docx round-trip.</p>
+
+    <div class="diagram-grid">
+      <div class="diagram-box">
+        <h4>Before — one big function</h4>
+        <div class="layer">
+          <div class="layer-label">buildDocument (229 lines)</div>
+          <div style="display:flex;flex-direction:column;gap:.2rem;font-size:.76rem">
+            <span class="node warn">page geometry</span>
+            <span class="node warn">anchor pre-pass</span>
+            <span class="node warn">block dispatch loop</span>
+            <span class="node warn">numbering state</span>
+            <span class="node warn">header/footer</span>
+            <span class="node warn">styles</span>
+            <span class="node warn">Packer.toBuffer</span>
+          </div>
+        </div>
+      </div>
+      <div class="diagram-box">
+        <h4>After — two concerns</h4>
+        <div class="layer">
+          <div class="layer-label">renderBlocks(blocks, cfg, ctx, layoutCtx) → Paragraph[]</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.2rem;font-size:.76rem">
+            <span class="node ok">dispatch loop</span>
+            <span class="node ok">numbering state</span>
+          </div>
+        </div>
+        <div class="layer mt-1">
+          <div class="layer-label">buildDocument → Buffer</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.2rem;font-size:.76rem">
+            <span class="node ok">page geometry</span>
+            <span class="node ok">anchor pre-pass</span>
+            <span class="node ok">calls renderBlocks</span>
+            <span class="node ok">header/footer</span>
+            <span class="node ok">styles</span>
+            <span class="node ok">Packer.toBuffer</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-title">Benefits</p>
+    <ul class="detail text-sm">
+      <li><strong>Testability</strong>: <code>renderBlocks</code> returns a plain array of docx <code>Paragraph</code> objects — inspectable without unpacking a Buffer.</li>
+      <li><strong>Locality</strong>: adding a new block type only touches <code>renderBlocks</code>, not the full 229-line function.</li>
+    </ul>
+    <p class="text-sm mt-2 text-gray-500">This is worth revisiting when block types grow beyond ~10 or when testing becomes painful. Not urgent today.</p>
+  </div>
+</div>
+
+<!-- ─── Top recommendation ─── -->
+<div class="card" style="border-color: #16a34a; background: #f0fdf4;">
+  <div class="card-header" style="background: #dcfce7; border-color: #bbf7d0;">
+    <span class="font-bold text-green-800 text-lg">Top recommendation: Candidate 1</span>
+  </div>
+  <div class="card-body">
+    <p class="text-sm text-green-900">Fix <strong><code>extractDirectives</code> being called twice in <code>convertFile</code></strong> first. It's the only candidate that introduces a real correctness risk (two parses must agree, with no enforcement), it's a 10-line change with zero behavior change for callers, and the fix simultaneously adds useful information (<code>outputFilename</code>) to the <code>convert()</code> return value.</p>
+    <p class="text-sm text-green-900 mt-2">After that, Candidate 2 (extract PNG utilities) is a clean rename/move — low risk, immediate clarity improvement. Candidate 3 (<code>parseYaml</code> extraction) follows naturally and rounds out the module graph. Candidate 4 is only worth opening if the block dispatch grows substantially.</p>
+  </div>
+</div>
+
+<p class="text-xs text-gray-400 mt-6 text-center">Generated by /improve-codebase-architecture · md-to-docx · 2026-06-10</p>
+</body>
+</html>
