@@ -146,7 +146,7 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       fitPage:      g('mermaid.fit_page', true),
       // target font size (pt) for EVERY mermaid diagram. 0 = follow body.size.
       // Note: a very tall diagram may still be shrunk below this by the resize/fit-page step.
-      fontSize:     g('mermaid.font_size', 9.5),
+      fontSize:     g('mermaid.font_size', 10.5),
       // font-size floor (pt) when shrinking — never resize text below this
       minFontPt:    g('mermaid.min_font_pt', 7.5),
       // height tolerance for the slice decision: a diagram only slightly taller than one page

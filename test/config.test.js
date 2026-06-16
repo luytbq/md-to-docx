@@ -68,7 +68,7 @@ test('buildConfig: YAML wins over overrides', () => {
 test('buildConfig: mermaid defaults', () => {
   const cfg = buildConfig('', {});
   assert.equal(cfg.mermaid.renderScale, 2);
-  assert.equal(cfg.mermaid.fontSize, 9.5);
+  assert.equal(cfg.mermaid.fontSize, 10.5);
   assert.equal(cfg.mermaid.minFontPt, 7.5);
   assert.equal(cfg.mermaid.fitPage, true);
 });
