@@ -18,9 +18,6 @@ function blank(cfg) {
   return new Paragraph({ children: [new TextRun({ text: '', font: cfg.body.font })], spacing: { after: 40 } });
 }
 
-function pageBreak() {
-  return new Paragraph({ children: [new TextRun({ text: '', break: 1 })], pageBreakBefore: true, spacing: { after: 0 } });
-}
 
 // ── Heading numbering ────────────────────────────────────────────────────────
 // Resolve cfg.heading.numbering: clamp from/to to [1,6] (warn on out-of-range),
@@ -143,7 +140,22 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
   let numInstance = 0;
   let inNumberedList = false;
 
-  for (const b of blocks) {
+  // Collapse hard page breaks onto the next renderable block so the break rides
+  // on real content instead of an empty paragraph (which renders as a blank line
+  // atop the new page). `blank` blocks are skipped (they land at the end of the
+  // previous page, never carry the break), so the flag lands on the next real
+  // content block. A trailing page break (only blanks / nothing after it) is
+  // dropped — no empty page. Consecutive page breaks collapse to one.
+  const renderBlocks = [];
+  { let pendingBreak = false;
+    for (const b of blocks) {
+      if (b.type === 'pagebreak') { pendingBreak = true; continue; }
+      if (pendingBreak && b.type !== 'blank') { b.pageBreakBefore = true; pendingBreak = false; }
+      renderBlocks.push(b);
+    }
+  }
+
+  for (const b of renderBlocks) {
     if (RESETS_NUMBERING(b)) inNumberedList = false;
 
     if (b.type === 'heading') {
@@ -152,6 +164,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       const hRuns = makeRuns(b.text, { bold: h.bold, italics: h.italic, color: h.color, size: h.size * 2 }, cfg, ctx);
       const hPara = { heading: HL[b.level], children: b.anchorId ? [new Bookmark({ id: b.anchorId, children: hRuns })] : hRuns };
       if (hAlign) hPara.alignment = hAlign;
+      if (b.pageBreakBefore) hPara.pageBreakBefore = true;
       if (num.enabled && b.level >= num.from && b.level <= num.to) {
         const expectedMax = prevNumberedLevel == null ? num.from : prevNumberedLevel + 1;
         if (b.level > expectedMax)
@@ -165,36 +178,34 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       const pAlign = b.align === 'center' ? AlignmentType.CENTER : b.align === 'right' ? AlignmentType.RIGHT : b.align === 'left' ? AlignmentType.LEFT : undefined;
       const pPara = { children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: cfg.body.spacingAfter * 20 } };
       if (pAlign) pPara.alignment = pAlign;
+      if (b.pageBreakBefore) pPara.pageBreakBefore = true;
       children.push(new Paragraph(pPara));
 
     } else if (b.type === 'bullet') {
-      children.push(new Paragraph({ numbering: { reference: 'bullet', level: b.indent }, children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: 40 } }));
+      children.push(new Paragraph({ numbering: { reference: 'bullet', level: b.indent }, children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: 40 }, pageBreakBefore: b.pageBreakBefore }));
 
     } else if (b.type === 'numbered') {
       if (!inNumberedList) { numInstance++; inNumberedList = true; }
-      children.push(new Paragraph({ numbering: { reference: 'number', level: b.indent, instance: numInstance }, children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: 40 } }));
+      children.push(new Paragraph({ numbering: { reference: 'number', level: b.indent, instance: numInstance }, children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: 40 }, pageBreakBefore: b.pageBreakBefore }));
 
     } else if (b.type === 'codeblock') {
       if (b.lang === 'mermaid') {
         hasMermaid = true;
-        const { paras, tall } = mermaidBlockParagraphs(b.code, cfg, { CW, PAGE, MG }, splitTall, keepMermaidText, warnings);
+        const { paras, tall } = mermaidBlockParagraphs(b.code, cfg, { CW, PAGE, MG }, splitTall, keepMermaidText, warnings, b.pageBreakBefore);
         if (tall) hasTallMermaid = true;
         children.push(...paras, blank(cfg));
       } else {
-        children.push(...codeBlock(b.lang, b.code, cfg), blank(cfg));
+        children.push(...codeBlock(b.lang, b.code, cfg, b.pageBreakBefore), blank(cfg));
       }
 
     } else if (b.type === 'image') {
-      children.push(...imageBlock(b, cfg, CW, baseDir, warnings, ctx));
+      children.push(...imageBlock(b, cfg, CW, baseDir, warnings, ctx, b.pageBreakBefore));
 
     } else if (b.type === 'table') {
-      children.push(mdTable(b, cfg, CW, ctx), blank(cfg));
+      children.push(mdTable(b, cfg, CW, ctx, b.pageBreakBefore), blank(cfg));
 
     } else if (b.type === 'hr') {
-      children.push(new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: cfg.table.border } }, spacing: { before: 120, after: 120 }, children: [new TextRun('')] }));
-
-    } else if (b.type === 'pagebreak') {
-      children.push(pageBreak());
+      children.push(new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: cfg.table.border } }, spacing: { before: 120, after: 120 }, children: [new TextRun('')], pageBreakBefore: b.pageBreakBefore }));
 
     } else {
       children.push(blank(cfg));

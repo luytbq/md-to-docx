@@ -14,11 +14,11 @@ import { codeBlock, mermaidCodeBlock } from './code.js';
  *   - paras: the rendered image paragraph(s), or a fallback code block on render failure
  *   - tall:  true if the diagram exceeds one page even at the min-font floor
  */
-export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, keepMermaidText, warnings) {
+export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, keepMermaidText, warnings, pageBreakBefore = false) {
   const result = renderMermaid(code, cfg.mermaid.renderScale);
   if (!result.buffer) {
     if (result.warning) warnings.push({ type: 'mermaid', message: result.warning });
-    return { paras: codeBlock('mermaid', code, cfg), tall: false };
+    return { paras: codeBlock('mermaid', code, cfg, pageBreakBefore), tall: false };
   }
 
   const { w, h } = pngDims(result.buffer);
@@ -55,7 +55,7 @@ export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, k
     // Multiple images, each fitting one page; Word breaks pages between slices.
     const s = imgPxW / w;
     for (const band of bands) {
-      paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: band.buf, transformation: { width: imgPxW, height: Math.round(band.srcH * s) }, type: 'png' })], spacing: { after: 0 } }));
+      paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: band.buf, transformation: { width: imgPxW, height: Math.round(band.srcH * s) }, type: 'png' })], spacing: { after: 0 }, pageBreakBefore: pageBreakBefore && paras.length === 0 }));
     }
   } else {
     // No slicing: if still taller than one page, shrink (fit_page) to avoid layout breakage,
@@ -64,7 +64,7 @@ export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, k
       const sFit = Math.max(maxH / h, sMin);
       imgPxW = Math.round(w * sFit); imgPxH = Math.round(h * sFit);
     }
-    paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: result.buffer, transformation: { width: imgPxW, height: imgPxH }, type: 'png' })], spacing: { after: cfg.body.spacingAfter * 20 } }));
+    paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: result.buffer, transformation: { width: imgPxW, height: imgPxH }, type: 'png' })], spacing: { after: cfg.body.spacingAfter * 20 }, pageBreakBefore: pageBreakBefore && paras.length === 0 }));
   }
 
   if (keepMermaidText) paras.push(...mermaidCodeBlock(code, cfg));

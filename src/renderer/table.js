@@ -15,11 +15,11 @@ function pad(cfg) {
   return { top: cfg.table.cellPad, bottom: cfg.table.cellPad, left: cfg.table.cellPad, right: cfg.table.cellPad };
 }
 
-export function tcell(text, { width, bold = false, italic = false, color, fill, size, borders: b, align = 'left' } = {}, cfg, ctx = {}) {
+export function tcell(text, { width, bold = false, italic = false, color, fill, size, borders: b, align = 'left', pageBreakBefore = false } = {}, cfg, ctx = {}) {
   const rOpts = { bold, italics: italic, size: (size ?? cfg.table.rowSize) * 2, font: cfg.body.font };
   if (color) rOpts.color = color;
   const cellOpts = {
-    children: [new Paragraph({ alignment: atype(align), spacing: { after: 0 }, children: makeRuns(text, rOpts, cfg, ctx) })],
+    children: [new Paragraph({ alignment: atype(align), spacing: { after: 0 }, children: makeRuns(text, rOpts, cfg, ctx), pageBreakBefore })],
     margins: pad(cfg),
     verticalAlign: VerticalAlign.TOP,
     borders: b ?? borders(cfg),
@@ -49,13 +49,13 @@ export function columnWidths(block, CW, { cap = 45, min = 800 } = {}) {
   return widths;
 }
 
-export function mdTable(block, cfg, CW, ctx = {}) {
+export function mdTable(block, cfg, CW, ctx = {}, pageBreakBefore = false) {
   const cols = block.headers.length;
   const widths = columnWidths(block, CW);
   const fontSize = Math.max(8, cfg.table.rowSize - Math.floor(Math.max(0, cols - 3) / 2));
   const BORDERS = borders(cfg);
   const rows = [
-    new TableRow({ children: block.headers.map((h, i) => tcell(h, { width: widths[i], bold: cfg.table.headerBold, color: cfg.table.headerColor, fill: cfg.table.headerFill, size: cfg.table.headerSize, borders: BORDERS, align: 'center' }, cfg, ctx)) }),
+    new TableRow({ children: block.headers.map((h, i) => tcell(h, { width: widths[i], bold: cfg.table.headerBold, color: cfg.table.headerColor, fill: cfg.table.headerFill, size: cfg.table.headerSize, borders: BORDERS, align: 'center', pageBreakBefore: pageBreakBefore && i === 0 }, cfg, ctx)) }),
     ...block.rows.map((row, ri) => new TableRow({ children: row.map((c, i) => tcell(c, { width: widths[i], fill: ri % 2 === 0 ? cfg.table.oddFill : cfg.table.evenFill, color: cfg.table.rowColor, size: fontSize, borders: BORDERS, align: block.align[i] || 'left' }, cfg, ctx)) })),
   ];
   return new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: widths, rows });

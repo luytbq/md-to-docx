@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import JSZip from 'jszip';
 import { convert } from '../src/index.js';
+
+// Extract word/document.xml from a generated .docx buffer (a zip) for assertions.
+async function documentXml(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  return zip.file('word/document.xml').async('string');
+}
 
 // Smoke test: a kitchen-sink document exercising the new features should build a
 // non-empty docx Buffer without throwing. Does NOT require mmdc — a mermaid block
@@ -48,6 +55,23 @@ test('convert: kitchen-sink builds a non-empty buffer with mermaid meta', async 
   assert.ok(Array.isArray(warnings));
   // its contiguous numbered headings (h1 → h2) produce no heading-numbering warnings
   assert.equal(warnings.filter(w => w.type === 'heading-numbering').length, 0);
+});
+
+test('convert: page break rides on the next block (no standalone empty break paragraph)', async () => {
+  const { buffer } = await convert('text a\n\n<!-- @pagebreak -->\n\ntext b');
+  const xml = await documentXml(buffer);
+  // The break lands on a content paragraph...
+  assert.ok(/<w:pageBreakBefore\b/.test(xml));
+  // ...and "text b" is the paragraph that carries it (the break paragraph is real content,
+  // not a dedicated empty one — i.e. pageBreakBefore appears in the same <w:p> as "text b").
+  const breakPara = xml.match(/<w:p\b[^>]*>(?:(?!<\/w:p>).)*pageBreakBefore(?:(?!<\/w:p>).)*<\/w:p>/s);
+  assert.ok(breakPara && /text b/.test(breakPara[0]));
+});
+
+test('convert: a trailing page break is dropped (no empty page)', async () => {
+  const { buffer } = await convert('last line\n\n<!-- @pagebreak -->');
+  const xml = await documentXml(buffer);
+  assert.equal(/<w:pageBreakBefore\b/.test(xml), false);
 });
 
 test('convert: resolved internal link emits no link warning', async () => {

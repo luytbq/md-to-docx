@@ -4,14 +4,14 @@ import { resolve } from 'path';
 import { pngDims } from '../mermaid.js';
 import { makeRuns } from '../parser/inline.js';
 
-export function imageBlock(block, cfg, CW, baseDir, warnings, ctx = {}) {
+export function imageBlock(block, cfg, CW, baseDir, warnings, ctx = {}, pageBreakBefore = false) {
   const imgPath = resolve(baseDir, block.src);
   let imgBuf;
   try {
     imgBuf = readFileSync(imgPath);
   } catch (_) {
     warnings.push({ type: 'image', message: `Cannot read image: ${imgPath}` });
-    return [new Paragraph({ children: [], spacing: { after: cfg.body.spacingAfter * 20 } })];
+    return [new Paragraph({ children: [], spacing: { after: cfg.body.spacingAfter * 20 }, pageBreakBefore })];
   }
   const { w, h } = pngDims(imgBuf);
   const maxW = Math.round(CW / 15);
@@ -24,7 +24,7 @@ export function imageBlock(block, cfg, CW, baseDir, warnings, ctx = {}) {
   const ext = imgPath.split('.').pop().toLowerCase();
   const imgType = ext === 'jpg' ? 'jpeg' : ext;
   const paras = [
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imgBuf, transformation: { width: imgPxW, height: imgPxH }, type: imgType })], spacing: { after: cfg.image.caption && block.alt ? 40 : cfg.body.spacingAfter * 20 } }),
+    new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imgBuf, transformation: { width: imgPxW, height: imgPxH }, type: imgType })], spacing: { after: cfg.image.caption && block.alt ? 40 : cfg.body.spacingAfter * 20 }, pageBreakBefore }),
   ];
   if (cfg.image.caption && block.alt) {
     paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: makeRuns(`_${block.alt}_`, {}, cfg, ctx), spacing: { after: cfg.body.spacingAfter * 20 } }));

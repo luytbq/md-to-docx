@@ -1,6 +1,6 @@
 import { Paragraph, TextRun, ShadingType } from 'docx';
 
-export function codeBlock(lang, code, cfg) {
+export function codeBlock(lang, code, cfg, pageBreakBefore = false) {
   const paras = [];
   if (cfg.code.labelShow && lang && !['text', 'plain', 'none', ''].includes(lang)) {
     paras.push(new Paragraph({
@@ -8,12 +8,14 @@ export function codeBlock(lang, code, cfg) {
       children: [new TextRun({ text: lang, font: cfg.code.font, size: cfg.code.labelSize * 2, color: cfg.code.labelColor })],
       shading: { fill: cfg.code.labelFill, type: ShadingType.CLEAR },
       spacing: { before: 0, after: 0 },
+      pageBreakBefore,
     }));
   }
   for (const line of code.split('\n')) {
     paras.push(new Paragraph({
       style: 'CodeBlock',
       children: [new TextRun({ text: line || ' ', font: cfg.code.font, size: cfg.code.size * 2 })],
+      pageBreakBefore: pageBreakBefore && paras.length === 0,
     }));
   }
   return paras;
