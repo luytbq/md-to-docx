@@ -98,8 +98,23 @@ export function renderMermaid(code, scale = 2) {
     const raw = (e.stderr?.toString() || e.message || '').trim();
     const lines = raw.split('\n').filter(l => l.trim());
     const errIdx = lines.findIndex(l => l.startsWith('Error:'));
-    const snippet = (errIdx >= 0 ? lines.slice(errIdx, errIdx + 3) : lines.slice(0, 3)).join('\n');
-    return { warning: `mermaid render failed: ${snippet}` };
+    const snippet = (errIdx >= 0 ? lines.slice(errIdx, errIdx + 3) : lines.slice(0, 3)).join('\n      ');
+    // A "Parse error on line N" means the mermaid SOURCE is invalid (not a tool fault).
+    // The overwhelmingly common cause is special characters in a node label that aren't
+    // quoted — point the user straight at the fix instead of dumping the raw parser trace.
+    const parse = raw.match(/Parse error on line (\d+)/i);
+    let warning;
+    if (parse) {
+      warning =
+        `mermaid syntax error on line ${parse[1]} of the diagram (the diagram source, not the .md file).\n` +
+        `      Likely cause: a node label contains special characters — ( ) [ ] { } : ; # or <br/> — that aren't quoted.\n` +
+        `      Fix: wrap the label text in double quotes, e.g.  A["Apple/Samsung giữ nguyên<br/>(vốn đã đọc)"]\n` +
+        `      Parser said: ${snippet}\n` +
+        `      The diagram was inserted as a plain code block instead.`;
+    } else {
+      warning = `mermaid render failed: ${snippet}\n      The diagram was inserted as a plain code block instead.`;
+    }
+    return { warning };
   } finally {
     try { unlinkSync(inF); } catch (_) {}
     try { unlinkSync(outF); } catch (_) {}
