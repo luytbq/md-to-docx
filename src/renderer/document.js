@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Bookmark,
-         AlignmentType, BorderStyle, ShadingType, LevelFormat, Header, Footer, PageNumber,
+         AlignmentType, BorderStyle, ShadingType, LevelFormat, LevelSuffix, Header, Footer, PageNumber,
          Tab, TabStopType } from 'docx';
 import { makeRuns } from '../parser/inline.js';
 import { slugify } from '../parser/slug.js';
@@ -20,6 +20,45 @@ function blank(cfg) {
 
 function pageBreak() {
   return new Paragraph({ children: [new TextRun({ text: '', break: 1 })], pageBreakBefore: true, spacing: { after: 0 } });
+}
+
+// ── Heading numbering ────────────────────────────────────────────────────────
+// Resolve cfg.heading.numbering: clamp from/to to [1,6] (warn on out-of-range),
+// and disable numbering when from > to (warn). A numbered heading at level L maps to
+// abstract-numbering level `L - from` (0-based); the counter is continuous across the
+// whole document (one shared instance) so deeper levels auto-reset under Word's rules.
+function resolveHeadingNumbering(hn, warnings) {
+  if (!hn.enabled) return { enabled: false };
+  const clamp = (raw, name, fallback) => {
+    const n = Math.round(Number(raw));
+    if (!Number.isFinite(n) || n < 1 || n > 6) {
+      warnings.push({ type: 'heading-numbering', message: `heading.numbering.${name}=${raw} out of range [1,6]; clamped` });
+      return Number.isFinite(n) ? Math.min(6, Math.max(1, n)) : fallback;
+    }
+    return n;
+  };
+  const from = clamp(hn.from, 'from', 1);
+  const to   = clamp(hn.to, 'to', 6);
+  if (from > to) {
+    warnings.push({ type: 'heading-numbering', message: `heading.numbering.from (${from}) > to (${to}); numbering disabled` });
+    return { enabled: false };
+  }
+  return { enabled: true, from, to };
+}
+
+// Build the docx multilevel numbering config (one DECIMAL level per numbered depth):
+// %1, %1.%2, %1.%2.%3 … with an optional trailing dot and the chosen suffix. The level
+// style pins indent to 0 so the heading text stays flush (no list-style hanging indent).
+function headingNumberingConfig(hn, num) {
+  const suffix = hn.separator === 'tab' ? LevelSuffix.TAB
+               : hn.separator === 'none' ? LevelSuffix.NOTHING : LevelSuffix.SPACE;
+  const levels = [];
+  for (let k = 0; k <= num.to - num.from; k++) {
+    const text = Array.from({ length: k + 1 }, (_, j) => `%${j + 1}`).join('.') + (hn.trailingDot ? '.' : '');
+    levels.push({ level: k, format: LevelFormat.DECIMAL, text, alignment: AlignmentType.LEFT, suffix,
+      style: { paragraph: { indent: { left: 0, hanging: 0 } } } });
+  }
+  return { reference: 'heading', levels };
 }
 
 // ── Running header/footer (3 zones + tokens) ─────────────────────────────────
@@ -89,6 +128,11 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
   }
   const ctx = { anchorMap, warnings, vars };
 
+  // Heading numbering (native Word multilevel). `num.enabled` gates everything; a numbered
+  // heading at level L gets `numbering: { reference: 'heading', level: L - num.from }`.
+  const num = resolveHeadingNumbering(cfg.heading.numbering, warnings);
+  let prevNumberedLevel = null;
+
   // The document title is not auto-rendered; `cfg.title` only feeds the `{title}`
   // header/footer token. A visible title is just normal body content the author writes.
 
@@ -108,6 +152,13 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       const hRuns = makeRuns(b.text, { bold: h.bold, italics: h.italic, color: h.color, size: h.size * 2 }, cfg, ctx);
       const hPara = { heading: HL[b.level], children: b.anchorId ? [new Bookmark({ id: b.anchorId, children: hRuns })] : hRuns };
       if (hAlign) hPara.alignment = hAlign;
+      if (num.enabled && b.level >= num.from && b.level <= num.to) {
+        const expectedMax = prevNumberedLevel == null ? num.from : prevNumberedLevel + 1;
+        if (b.level > expectedMax)
+          warnings.push({ type: 'heading-numbering', message: `h${b.level} "${b.text}" skips a level (no intervening h${expectedMax}); Word will show gaps like 1.0.1` });
+        prevNumberedLevel = b.level;
+        hPara.numbering = { reference: 'heading', level: b.level - num.from };
+      }
       children.push(new Paragraph(hPara));
 
     } else if (b.type === 'paragraph') {
@@ -197,6 +248,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
             { level: 1, format: LevelFormat.LOWER_LETTER, text: '%2.', alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: cfg.list.indentDXA * 2, hanging: Math.round(cfg.list.indentDXA / 2) } } } },
           ],
         },
+        ...(num.enabled ? [headingNumberingConfig(cfg.heading.numbering, num)] : []),
       ],
     },
     styles: {

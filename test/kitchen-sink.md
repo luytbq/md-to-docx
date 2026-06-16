@@ -14,6 +14,11 @@ mermaid:
   font_size: 9.5
 image:
   caption: true
+heading:
+  numbering:
+    enabled: true
+    from: 1
+    to: 3
 vars:
   version: v1.0
   org: md-to-docx

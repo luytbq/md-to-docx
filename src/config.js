@@ -86,6 +86,13 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
     },
     heading: {
       font: g('heading.font', 'Arial'),
+      numbering: {
+        enabled:     g('heading.numbering.enabled', false),
+        from:        g('heading.numbering.from', 1),
+        to:          g('heading.numbering.to', 3),
+        trailingDot: g('heading.numbering.trailing_dot', true),
+        separator:   g('heading.numbering.separator', 'space'),  // space | tab | none
+      },
       h: [null,
         { size: g('heading.h1.size', 20), bold: g('heading.h1.bold', true),  italic: g('heading.h1.italic', false), color: g('heading.h1.color', '1F272E'), before: g('heading.h1.before', 20), after: g('heading.h1.after', 8),  align: g('heading.h1.align', null) },
         { size: g('heading.h2.size', 16), bold: g('heading.h2.bold', true),  italic: g('heading.h2.italic', false), color: g('heading.h2.color', '1F272E'), before: g('heading.h2.before', 16), after: g('heading.h2.after', 7),  align: g('heading.h2.align', null) },

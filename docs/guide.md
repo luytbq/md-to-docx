@@ -585,6 +585,35 @@ Per‑level defaults:
 | h5 | 11 | ✓ | ✓ | `1F272E` | 8 | 4 |
 | h6 | 10 | — | ✓ | `555555` | 6 | 3 |
 
+**Heading numbering** — `heading.numbering` turns on native Word multilevel
+numbering (`1`, `1.1`, `1.2.3` …). The numbers are *live* Word fields: they
+renumber automatically if you add/move/delete headings in Word, and the prefix
+inherits each heading's own size/bold/colour. It is **off by default**.
+
+| Sub‑key | Type | Default | Description |
+|:--------|:-----|:--------|:------------|
+| `enabled` | bool | `false` | turn heading numbering on |
+| `from` | number (1–6) | `1` | shallowest level to number |
+| `to` | number (1–6) | `3` | deepest level to number |
+| `trailing_dot` | bool | `true` | `1.2.3.` instead of `1.2.3` |
+| `separator` | `space` \| `tab` \| `none` | `space` | gap between the number and the heading text |
+
+```yaml
+heading:
+  numbering:
+    enabled: true
+    from: 1
+    to: 3
+```
+
+Headings outside the `from`…`to` range are left unnumbered. Numbering is
+**continuous across the whole document** and follows Word's rules, so deeper
+counters reset under each shallower heading. If the document *skips* a level
+inside the numbered range (e.g. an `h1` followed directly by an `h3`), Word will
+show gaps like `1.0.1`; the converter emits a `heading-numbering` warning so the
+structural jump isn't silent. An out‑of‑range `from`/`to` is clamped (with a
+warning), and `from > to` disables numbering (with a warning).
+
 #### `table`
 
 | Key | Type | Default | Description |
@@ -693,6 +722,12 @@ body:
 
 heading:
   font: Arial
+  numbering:
+    enabled: false   # native Word multilevel numbering (1, 1.1, 1.2.3 …)
+    from: 1          # shallowest level numbered
+    to: 3            # deepest level numbered
+    trailing_dot: true
+    separator: space # space | tab | none
   h1:
     size: 20
     bold: true

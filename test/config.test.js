@@ -88,3 +88,21 @@ test('buildConfig: image caption can be disabled', () => {
   const cfg = buildConfig('image:\n  caption: false', {});
   assert.equal(cfg.image.caption, false);
 });
+
+test('buildConfig: heading numbering defaults (off, h1-h3, dotted)', () => {
+  const cfg = buildConfig('', {});
+  assert.equal(cfg.heading.numbering.enabled, false);
+  assert.equal(cfg.heading.numbering.from, 1);
+  assert.equal(cfg.heading.numbering.to, 3);
+  assert.equal(cfg.heading.numbering.trailingDot, false);
+  assert.equal(cfg.heading.numbering.separator, 'space');
+});
+
+test('buildConfig: heading numbering YAML override', () => {
+  const cfg = buildConfig('heading:\n  numbering:\n    enabled: true\n    from: 2\n    to: 4\n    trailing_dot: true\n    separator: tab', {});
+  assert.equal(cfg.heading.numbering.enabled, true);
+  assert.equal(cfg.heading.numbering.from, 2);
+  assert.equal(cfg.heading.numbering.to, 4);
+  assert.equal(cfg.heading.numbering.trailingDot, true);
+  assert.equal(cfg.heading.numbering.separator, 'tab');
+});
