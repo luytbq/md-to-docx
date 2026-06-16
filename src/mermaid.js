@@ -177,3 +177,42 @@ export function sliceTall(imgBuf, w, h, bandSrcH) {
   }
   return bands.length ? bands : null;
 }
+
+/**
+ * Crop the uniform white/transparent margins mermaid (mmdc) bakes into the PNG —
+ * sequence diagrams in particular pad both sides, which wastes horizontal space once
+ * the image is scaled to the content width and makes wide diagrams read smaller.
+ * Pure JS (pngjs); a small `pad` (source px) is kept so content isn't flush to the edge.
+ * @returns {{ buf: Buffer, w: number, h: number } | null} cropped image, or null if
+ *   decode failed, the image is all background, or there's nothing to trim.
+ */
+export function trimWhitespace(imgBuf, pad = 6) {
+  let png;
+  try { png = PNG.sync.read(imgBuf); } catch (_) { return null; }
+  const { width: W, height: H, data } = png;
+  let minX = W, minY = H, maxX = -1, maxY = -1;
+  for (let y = 0; y < H; y++) {
+    let i = y * W * 4;
+    for (let x = 0; x < W; x++, i += 4) {
+      const a = data[i + 3];
+      if (a < 16) continue;  // transparent → background
+      const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      if (lum >= 250) continue;  // near-white → background
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < 0) return null;  // entirely background
+  minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+  maxX = Math.min(W - 1, maxX + pad); maxY = Math.min(H - 1, maxY + pad);
+  const cw = maxX - minX + 1, ch = maxY - minY + 1;
+  if (cw >= W && ch >= H) return null;  // nothing to trim
+  const out = new PNG({ width: cw, height: ch });
+  for (let y = 0; y < ch; y++) {
+    const src = ((minY + y) * W + minX) * 4;
+    data.copy(out.data, y * cw * 4, src, src + cw * 4);
+  }
+  return { buf: PNG.sync.write(out), w: cw, h: ch };
+}

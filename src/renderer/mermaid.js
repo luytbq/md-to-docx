@@ -1,5 +1,5 @@
 import { Paragraph, ImageRun, AlignmentType } from 'docx';
-import { renderMermaid, sliceTall, pngDims } from '../mermaid.js';
+import { renderMermaid, sliceTall, pngDims, trimWhitespace } from '../mermaid.js';
 import { codeBlock, mermaidCodeBlock } from './code.js';
 
 /**
@@ -21,7 +21,13 @@ export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, k
     return { paras: codeBlock('mermaid', code, cfg, pageBreakBefore), tall: false };
   }
 
-  const { w, h } = pngDims(result.buffer);
+  // Crop the white side/top margins mmdc bakes in so the diagram fills the content
+  // width (wide diagrams otherwise render smaller than they could). Falls back to the
+  // original buffer if trimming is disabled or there's nothing to trim.
+  let imgBuf = result.buffer;
+  const trimmed = cfg.mermaid.trim ? trimWhitespace(result.buffer) : null;
+  if (trimmed) imgBuf = trimmed.buf;
+  const { w, h } = trimmed ? { w: trimmed.w, h: trimmed.h } : pngDims(result.buffer);
   // Scale so diagram text shows at the target font size.
   // Target = mermaid.font_size if set, else the document body size.
   // PNG is rendered at renderScale×, base font baseFontPx px → font in PNG = baseFontPx*renderScale px.
@@ -47,7 +53,7 @@ export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, k
   if (imgPxH > maxH && !fitsAtMinFont) {
     tall = true;
     const s = imgPxW / w;  // final display ratio (width-capped) — slice at document font size
-    if (splitTall) bands = sliceTall(result.buffer, w, h, Math.floor(maxH / s));
+    if (splitTall) bands = sliceTall(imgBuf, w, h, Math.floor(maxH / s));
   }
 
   const paras = [];
@@ -64,7 +70,7 @@ export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, k
       const sFit = Math.max(maxH / h, sMin);
       imgPxW = Math.round(w * sFit); imgPxH = Math.round(h * sFit);
     }
-    paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: result.buffer, transformation: { width: imgPxW, height: imgPxH }, type: 'png' })], spacing: { after: cfg.body.spacingAfter * 20 }, pageBreakBefore: pageBreakBefore && paras.length === 0 }));
+    paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imgBuf, transformation: { width: imgPxW, height: imgPxH }, type: 'png' })], spacing: { after: cfg.body.spacingAfter * 20 }, pageBreakBefore: pageBreakBefore && paras.length === 0 }));
   }
 
   if (keepMermaidText) paras.push(...mermaidCodeBlock(code, cfg));

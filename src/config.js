@@ -152,6 +152,8 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       // height tolerance for the slice decision: a diagram only slightly taller than one page
       // (≤ this ratio) at the font floor prefers a one-page resize over slicing. Absorbs mermaid render jitter.
       fitTolerance: g('mermaid.fit_tolerance', 0.06),
+      // crop the white margins mmdc bakes around the diagram so it fills the content width
+      trim:         g('mermaid.trim', true),
     },
     list: {
       indentDXA: Math.round(g('list.indent', 0.63) * 567),
