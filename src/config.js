@@ -103,8 +103,8 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       ],
     },
     table: {
-      headerFill:  g('table.header.fill', '2D4E6E'),
-      headerColor: g('table.header.color', 'FFFFFF'),
+      headerFill:  g('table.header.fill', ''),
+      headerColor: g('table.header.color', '1F272E'),
       headerBold:  g('table.header.bold', true),
       headerSize:  g('table.header.size', 10),
       oddFill:     g('table.row.odd_fill', 'F0F4F8'),
