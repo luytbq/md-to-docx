@@ -181,6 +181,18 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       if (b.pageBreakBefore) pPara.pageBreakBefore = true;
       children.push(new Paragraph(pPara));
 
+    } else if (b.type === 'quote') {
+      const q = cfg.quote;
+      const base = { italics: q.italic, color: q.color };
+      const border = q.borderColor ? { left: { style: BorderStyle.SINGLE, size: q.borderSize, color: q.borderColor, space: 8 } } : undefined;
+      b.paras.forEach((text, pi) => {
+        const opts = { children: makeRuns(text, base, cfg, ctx), indent: { left: q.indentDXA }, spacing: { after: q.spacingAfter * 20 } };
+        if (border) opts.border = border;
+        if (q.fill) opts.shading = { fill: q.fill, type: ShadingType.CLEAR };
+        if (pi === 0 && b.pageBreakBefore) opts.pageBreakBefore = true;
+        children.push(new Paragraph(opts));
+      });
+
     } else if (b.type === 'bullet') {
       children.push(new Paragraph({ numbering: { reference: 'bullet', level: b.indent }, children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: 40 }, pageBreakBefore: b.pageBreakBefore }));
 

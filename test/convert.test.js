@@ -74,6 +74,17 @@ test('convert: a trailing page break is dropped (no empty page)', async () => {
   assert.equal(/<w:pageBreakBefore\b/.test(xml), false);
 });
 
+test('convert: blockquote renders without literal > and as italic indented text', async () => {
+  const { buffer } = await convert('> **Key:** quoted text\n> spanning two lines');
+  const xml = await documentXml(buffer);
+  // the joined quote text is present, without the leading `>` marker
+  assert.ok(/quoted text spanning two lines/.test(xml));
+  assert.equal(/&gt; \*\*Key/.test(xml), false);
+  // rendered italic (base run opt) and left-indented
+  assert.ok(/<w:i\b/.test(xml));
+  assert.ok(/<w:ind\b[^>]*w:left/.test(xml));
+});
+
 test('convert: resolved internal link emits no link warning', async () => {
   const md = '# Intro\n\nGo to [section](#intro).';
   const { warnings } = await convert(md);

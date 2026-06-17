@@ -77,6 +77,11 @@ export function parseMarkdown(md) {
       const { block, next } = parseTable(lines, i);
       blocks.push(block); i = next; continue;
     }
+    if (/^\s*>/.test(line)) {
+      listIndent.reset();
+      const { block, next } = parseQuote(lines, i);
+      blocks.push(block); i = next; continue;
+    }
 
     // ── Single-line blocks (in priority order) ─────────────────────────
     const heading = line.match(/^(#{1,6})\s+(.*)/);
@@ -146,6 +151,24 @@ function parseFence(lines, i) {
   let j = i + 1;
   while (j < lines.length && !/^```/.test(lines[j])) code.push(lines[j++]);
   return { block: { type: 'codeblock', lang, code: code.join('\n') }, next: j + 1 };
+}
+
+// Blockquote: consecutive lines starting with `>`. Strip the `>` and one optional space
+// from each, then split into paragraphs on blank quote lines (a `>` with nothing after it).
+// Lines within a paragraph are joined with a space. Line-based, not CommonMark — only lines
+// that start with `>` are consumed (no lazy continuation).
+function parseQuote(lines, i) {
+  const paras = [];
+  let cur = [];
+  let j = i;
+  while (j < lines.length && /^\s*>/.test(lines[j])) {
+    const text = lines[j].replace(/^\s*>\s?/, '');
+    if (text.trim() === '') { if (cur.length) { paras.push(cur.join(' ')); cur = []; } }
+    else cur.push(text.trim());
+    j++;
+  }
+  if (cur.length) paras.push(cur.join(' '));
+  return { block: { type: 'quote', paras }, next: j };
 }
 
 // A table starts with a `|…` row immediately followed by a `|---|---|` separator row.

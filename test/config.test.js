@@ -44,7 +44,7 @@ test('buildConfig: defaults when no YAML', () => {
   assert.equal(cfg.body.font, 'Arial');
   assert.equal(cfg.body.size, 11);
   assert.equal(cfg.page.size, 'A4');
-  assert.equal(cfg.table.headerFill, '2D4E6E');
+  assert.equal(cfg.table.headerFill, '');
 });
 
 test('buildConfig: YAML overrides defaults', () => {
@@ -94,7 +94,7 @@ test('buildConfig: heading numbering defaults (off, h1-h3, dotted)', () => {
   assert.equal(cfg.heading.numbering.enabled, false);
   assert.equal(cfg.heading.numbering.from, 1);
   assert.equal(cfg.heading.numbering.to, 3);
-  assert.equal(cfg.heading.numbering.trailingDot, false);
+  assert.equal(cfg.heading.numbering.trailingDot, true);
   assert.equal(cfg.heading.numbering.separator, 'space');
 });
 

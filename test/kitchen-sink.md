@@ -173,6 +173,15 @@ A paragraph here breaks the list, so the next list restarts numbering at 1.
 1. Fresh first
 2. Fresh second
 
+## Blockquotes
+
+A blockquote renders as indented italic text:
+
+> **Key insight:** the buffer lives at a low address while the return address
+> sits higher up. Overflow the buffer and you eventually overwrite it.
+>
+> A second paragraph in the same quote, separated by a blank quote line.
+
 ## Notes
 
 This is the first "Notes" section — its slug is `#notes`.

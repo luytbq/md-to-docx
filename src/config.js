@@ -115,6 +115,16 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       borderSize:  g('table.border_size', 4),
       cellPad:     Math.round(g('table.cell_padding', 0.15) * 567),
     },
+    quote: {
+      color:        g('quote.color', '1F272E'),     // = body.color default
+      italic:       g('quote.italic', true),
+      indentDXA:    Math.round(g('quote.indent', 0.63) * 567),
+      spacingAfter: g('quote.spacing_after', 6),
+      // off by default — set to enable a left bar / shaded box
+      borderColor:  g('quote.border.color', ''),
+      borderSize:   g('quote.border.size', 24),
+      fill:         g('quote.fill', ''),
+    },
     code: {
       font:       g('code.font', 'Courier New'),
       size:       g('code.size', 9),

@@ -24,6 +24,7 @@ For installation and how to run the tool, see the [README](../README.md).
   - [2.10 Horizontal rules](#210-horizontal-rules)
   - [2.11 Page breaks](#211-page-breaks)
   - [2.12 Comments](#212-comments)
+  - [2.13 Blockquotes](#213-blockquotes)
 - [3. Directives (`@`-comments)](#3-directives--comments)
   - [3.1 Grammar](#31-grammar)
   - [3.2 `@config` / `@doc` — document configuration](#32-config--doc--document-configuration)
@@ -245,6 +246,23 @@ The closing `-->` line is dropped in full, so don't put visible text after it on
 the same line. A comment that begins **mid‑line** (`text <!-- note -->`) is not
 stripped and renders literally — except a paired `@style` comment, which is
 interpreted ([§3.3](#33-style--inline-run-styling)).
+
+### 2.13 Blockquotes
+
+Lines beginning with `>` form a blockquote:
+
+```markdown
+> **Key insight:** the buffer lives at a low address while the
+> return address sits higher up.
+>
+> A second paragraph, separated by a blank quote line.
+```
+
+Consecutive `>` lines are joined into one paragraph; a `>` line with nothing
+after it starts a new paragraph within the same quote. The block ends at the
+first line that does not start with `>`. Inline formatting (`**bold**`, links,
+`@style`, …) works inside. By default a quote renders as indented italic text;
+the [`quote.*`](#quote) keys can add a left bar or shaded box.
 
 ---
 
@@ -618,8 +636,8 @@ warning), and `from > to` disables numbering (with a warning).
 
 | Key | Type | Default | Description |
 |:----|:-----|:--------|:------------|
-| `table.header.fill` | hex | `2D4E6E` | Header row fill. |
-| `table.header.color` | hex | `FFFFFF` | Header text color. |
+| `table.header.fill` | hex | *(none)* | Header row fill; empty = no fill. |
+| `table.header.color` | hex | `1F272E` | Header text color. |
 | `table.header.bold` | bool | `true` | Header bold. |
 | `table.header.size` | number (pt) | `10` | Header font size. |
 | `table.row.odd_fill` | hex | `F0F4F8` | Odd‑row fill. |
@@ -629,6 +647,23 @@ warning), and `from > to` disables numbering (with a warning).
 | `table.border` | hex | `C0C8D0` | Border color. |
 | `table.border_size` | number | `4` | Border thickness (⅛ pt). |
 | `table.cell_padding` | number (cm) | `0.15` | Cell padding. |
+
+<a id="quote"></a>
+
+#### `quote`
+
+Styling for blockquotes ([§2.13](#213-blockquotes)). Defaults to indented italic
+text; set `quote.border.color` for a left bar or `quote.fill` for a shaded box.
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `quote.color` | hex | `1F272E` | Quote text color. |
+| `quote.italic` | bool | `true` | Render the quote italic. |
+| `quote.indent` | number (cm) | `0.63` | Left indent. |
+| `quote.spacing_after` | number (pt) | `6` | Space after each quote paragraph. |
+| `quote.border.color` | hex | *(none)* | Left bar color; empty = no bar. |
+| `quote.border.size` | number | `24` | Left bar thickness (⅛ pt). |
+| `quote.fill` | hex | *(none)* | Background fill; empty = none. |
 
 #### `code`
 

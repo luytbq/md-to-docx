@@ -92,6 +92,27 @@ test('parseMarkdown: lazy continuation does not cross a blank line', () => {
   assert.equal(blocks[2].type, 'paragraph');
 });
 
+test('parseMarkdown: blockquote joins lines into one paragraph', () => {
+  const blocks = parseMarkdown('> line one\n> line two');
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].type, 'quote');
+  assert.deepEqual(blocks[0].paras, ['line one line two']);
+});
+
+test('parseMarkdown: blockquote splits paragraphs on a blank quote line', () => {
+  const blocks = parseMarkdown('> first\n>\n> second');
+  assert.equal(blocks[0].type, 'quote');
+  assert.deepEqual(blocks[0].paras, ['first', 'second']);
+});
+
+test('parseMarkdown: blockquote ends at first non-quote line', () => {
+  const blocks = parseMarkdown('> quoted\nplain paragraph');
+  assert.equal(blocks[0].type, 'quote');
+  assert.deepEqual(blocks[0].paras, ['quoted']);
+  assert.equal(blocks[1].type, 'paragraph');
+  assert.equal(blocks[1].text, 'plain paragraph');
+});
+
 test('parseMarkdown: numbered list', () => {
   const blocks = parseMarkdown('1. first\n2. second');
   assert.equal(blocks[0].type, 'numbered');
