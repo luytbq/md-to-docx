@@ -1,4 +1,4 @@
-# @luytbq/md-to-docx
+# @luytbq43/md-to-docx
 
 Convert Markdown to a styled DOCX (Word) document — with tables, mermaid
 diagrams, images, and full styling controlled by invisible HTML‑comment
@@ -17,7 +17,7 @@ directives. No build step, no global tools.
   them as `{doc.title}`, `{vars.version}`, `{page}`, `{date}` anywhere in the document.
 - **CLI and programmatic API**, both returning structured warnings.
 
-Full authoring details are in the **[Syntax & Configuration Reference](docs/guide.md)**.
+Full authoring details are in the **[Syntax & Configuration Reference](skills/write-md-to-docx/reference.md)**.
 
 ## Requirements
 
@@ -38,13 +38,13 @@ network access.
 ## Installation
 
 ```bash
-npm install -g @luytbq/md-to-docx
+npm install -g @luytbq43/md-to-docx
 ```
 
 Or add it to a project:
 
 ```bash
-npm install @luytbq/md-to-docx
+npm install @luytbq43/md-to-docx
 ```
 
 ## Usage
@@ -67,7 +67,7 @@ md-to-docx input.md --split-tall-mermaid
 ### Programmatic API
 
 ```js
-import { convert, convertFile } from '@luytbq/md-to-docx';
+import { convert, convertFile } from '@luytbq43/md-to-docx';
 
 // Markdown string → Buffer
 const { buffer, warnings, meta } = await convert(markdownString, {
@@ -94,10 +94,21 @@ in `warnings`.
 
 ## Documentation
 
-- **[Syntax & Configuration Reference](docs/guide.md)** — the full Markdown
+- **[Syntax & Configuration Reference](skills/write-md-to-docx/reference.md)** — the full Markdown
   subset, the directive system (`@config`, `@style`, `@header`/`@footer`,
   `@pagebreak`), the variable system, and every configuration key with its
   default and unit.
+
+## Authoring with an AI agent
+
+This repo ships a **[`write-md-to-docx` agent skill](skills/write-md-to-docx/SKILL.md)** that teaches an
+AI coding agent (Claude Code, Cursor, …) to author Markdown in this tool's dialect — directives, inline
+`@style`, variables, internal links — and to verify its output by running the converter and reading the
+warnings. Install it into your project with [`npx skills`](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add luytbq/md-to-docx --skill write-md-to-docx
+```
 
 ## Quick taste
 

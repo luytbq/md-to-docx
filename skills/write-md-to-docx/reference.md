@@ -4,8 +4,6 @@ The complete reference for authoring documents with `md-to-docx`: the Markdown
 subset it understands, the HTML‑comment **directive** system, and every
 **configuration** key.
 
-For installation and how to run the tool, see the [README](../README.md).
-
 ---
 
 ## Table of contents
@@ -856,7 +854,7 @@ The API accepts a `config` object of the same keys (nested), at lower priority
 than in‑document `@config`:
 
 ```js
-import { convert } from '@luytbq/md-to-docx';
+import { convert } from '@luytbq43/md-to-docx';
 
 const { buffer, warnings, meta } = await convert(markdown, {
   baseDir: '/path/to/assets',
