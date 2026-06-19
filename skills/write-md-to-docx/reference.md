@@ -382,7 +382,7 @@ OPS_20260309_134 SHOPEEPAY/ZALOPAY — long title on its own line
 | `sub` | subscript | flag |
 | `font="…"` | font family | quote if it contains spaces |
 | `size=N` | font size in pt | |
-| `align=center` \| `right` \| `left` | **paragraph** alignment | only when the `@style` *starts the line* — centers/right‑aligns the whole paragraph. Combine with `size`/`bold` to make a title without using a heading. |
+| `align=center` \| `right` \| `left` \| `justify` | **paragraph** alignment | only when the `@style` *starts the line* — centers/right‑aligns/justifies the whole paragraph. Combine with `size`/`bold` to make a title without using a heading. Overrides the document‑wide `body.align` default ([§7](#7-config-reference)). |
 
 Most args style the text *run*; **`align` is the exception** — it aligns the
 whole paragraph, so it only takes effect when the `@style` (wrapping or
@@ -752,6 +752,7 @@ body:
   size: 11
   color: 1F272E
   spacing_after: 6
+  align: null    # null (=left) | center | right | left | justify — default alignment for all body paragraphs
 
 heading:
   font: Arial

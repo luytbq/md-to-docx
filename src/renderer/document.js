@@ -175,7 +175,8 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       children.push(new Paragraph(hPara));
 
     } else if (b.type === 'paragraph') {
-      const pAlign = b.align === 'center' ? AlignmentType.CENTER : b.align === 'right' ? AlignmentType.RIGHT : b.align === 'left' ? AlignmentType.LEFT : undefined;
+      const align = b.align || cfg.body.align;   // per-paragraph @style align overrides the document-wide body.align default
+      const pAlign = align === 'center' ? AlignmentType.CENTER : align === 'right' ? AlignmentType.RIGHT : align === 'left' ? AlignmentType.LEFT : align === 'justify' ? AlignmentType.JUSTIFIED : undefined;
       const pPara = { children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: cfg.body.spacingAfter * 20 } };
       if (pAlign) pPara.alignment = pAlign;
       if (b.pageBreakBefore) pPara.pageBreakBefore = true;

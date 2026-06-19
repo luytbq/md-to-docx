@@ -83,6 +83,7 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       size:         g('body.size', 11),
       color:        g('body.color', '1F272E'),
       spacingAfter: g('body.spacing_after', 6),
+      align:        g('body.align', null),   // null=left; 'center'|'right'|'left'|'justify' apply to all body paragraphs
     },
     heading: {
       font: g('heading.font', 'Arial'),

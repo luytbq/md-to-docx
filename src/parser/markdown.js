@@ -41,7 +41,7 @@ export function parseMarkdown(md) {
       if (next && next.trim()) {
         const pblock = { type: 'paragraph', text: `<!-- @style ${args} -->${next.trim()}<!-- /style -->` };
         const a = parseArgs(args).align;
-        if (a === 'center' || a === 'right' || a === 'left') pblock.align = a;
+        if (a === 'center' || a === 'right' || a === 'left' || a === 'justify') pblock.align = a;
         blocks.push(pblock); i += 2; continue;
       }
       i++; continue;   // nothing to style on the next line → drop the bare tag
@@ -64,7 +64,7 @@ export function parseMarkdown(md) {
       const body = bodyParts.join(' ').replace(/\s+/g, ' ').trim();
       const pblock = { type: 'paragraph', text: `<!-- @style${args}-->${body}<!-- /style -->` };
       const a = parseArgs(args).align;
-      if (a === 'center' || a === 'right' || a === 'left') pblock.align = a;
+      if (a === 'center' || a === 'right' || a === 'left' || a === 'justify') pblock.align = a;
       blocks.push(pblock); i = j + 1; continue;
     }
     if (/^```/.test(line)) {
@@ -133,7 +133,7 @@ export function parseMarkdown(md) {
     const lead = trimmed.match(/^<!--\s*@style\b([^>]*?)-->/i);
     if (lead) {
       const a = parseArgs(lead[1]).align;
-      if (a === 'center' || a === 'right' || a === 'left') pblock.align = a;
+      if (a === 'center' || a === 'right' || a === 'left' || a === 'justify') pblock.align = a;
     }
     blocks.push(pblock);
     i++;
