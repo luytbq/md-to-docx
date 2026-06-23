@@ -543,7 +543,8 @@ overrides**, so a document can always pin its own look.
 | Kind | Format | Example |
 |:-----|:-------|:--------|
 | Length | centimetres | `margin: 2.5` |
-| Font size / spacing | points (pt) | `size: 11`, `before: 20` |
+| Font size / spacing | points (pt) | `size: 11`, `space_before: 20` |
+| Line spacing | multiple of a line | `line_spacing: 1.5` |
 | Color | 6‑digit hex, **no** `#` | `color: 1F272E` |
 | Boolean | `true` / `false` | `bold: true` |
 
@@ -573,12 +574,30 @@ overrides**, so a document can always pin its own look.
 | `body.font` | string | `Arial` | Default body font. |
 | `body.size` | number (pt) | `11` | Default body font size. |
 | `body.color` | hex | `1F272E` | Default text color. |
-| `body.spacing_after` | number (pt) | `6` | Space after each paragraph. |
+| `body.line_spacing` | number (×) | `1.5` | Line spacing (a multiple: `1` = single, `1.5`, `2` = double). Also the document‑wide default for any block without its own. |
+| `body.space_before` | number (pt) | `0` | Space before each paragraph. |
+| `body.space_after` | number (pt) | `6` | Space after each paragraph. |
+
+> **Spacing keys are uniform across block types.** `body`, `heading` (+ each `h1`…`h6`),
+> `list`, `quote`, `table`, and `code` all accept `line_spacing`, `space_before`, and
+> `space_after`. `code` and `table` default to `line_spacing: 1.0` (tight); the rest default
+> to `1.5`.
 
 #### `heading`
 
-`heading.font` (default `Arial`) sets the font for all headings. Each level
-`h1`…`h6` accepts the same sub‑keys:
+`heading.font` (default `Arial`) sets the font for all headings.
+
+`heading.line_spacing` (number, default `1.5`) sets the line spacing for **all** heading
+levels at once; a per‑level `h{N}.line_spacing` overrides it for that level.
+
+`heading.skip_blank_after` (bool, default `true`) drops the single blank line you
+conventionally leave right after a heading, so it doesn't render as an extra empty
+paragraph below the heading. Only the *first* blank line is dropped — a second blank
+line is kept, so you can still add deliberate spacing. Set it to `false` to keep the
+blank line. (Note: the blank line right after a `@pagebreak` is *always* dropped,
+independent of this key.)
+
+Each level `h1`…`h6` accepts the same sub‑keys:
 
 | Sub‑key | Type | Description |
 |:--------|:-----|:------------|
@@ -586,13 +605,14 @@ overrides**, so a document can always pin its own look.
 | `bold` | bool | bold |
 | `italic` | bool | italic |
 | `color` | hex | text color |
-| `before` | number (pt) | space before |
-| `after` | number (pt) | space after |
+| `line_spacing` | number (×) | line spacing (overrides `heading.line_spacing`) |
+| `space_before` | number (pt) | space before |
+| `space_after` | number (pt) | space after |
 | `align` | `null` \| `center` \| `right` | alignment (`null` = left) |
 
-Per‑level defaults:
+Per‑level defaults (all levels: `line_spacing` `1.5`):
 
-| Level | size | bold | italic | color | before | after |
+| Level | size | bold | italic | color | space_before | space_after |
 |:------|----:|:----:|:------:|:------|------:|-----:|
 | h1 | 20 | ✓ | — | `1F272E` | 20 | 8 |
 | h2 | 16 | ✓ | — | `1F272E` | 16 | 7 |
@@ -645,6 +665,9 @@ warning), and `from > to` disables numbering (with a warning).
 | `table.border` | hex | `C0C8D0` | Border color. |
 | `table.border_size` | number | `4` | Border thickness (⅛ pt). |
 | `table.cell_padding` | number (cm) | `0.15` | Cell padding. |
+| `table.line_spacing` | number (×) | `1.0` | Cell line spacing (tight by default). |
+| `table.space_before` | number (pt) | `0` | Space before cell paragraphs. |
+| `table.space_after` | number (pt) | `0` | Space after cell paragraphs. |
 
 <a id="quote"></a>
 
@@ -658,7 +681,9 @@ text; set `quote.border.color` for a left bar or `quote.fill` for a shaded box.
 | `quote.color` | hex | `1F272E` | Quote text color. |
 | `quote.italic` | bool | `true` | Render the quote italic. |
 | `quote.indent` | number (cm) | `0.63` | Left indent. |
-| `quote.spacing_after` | number (pt) | `6` | Space after each quote paragraph. |
+| `quote.line_spacing` | number (×) | `1.5` | Line spacing. |
+| `quote.space_before` | number (pt) | `0` | Space before each quote paragraph. |
+| `quote.space_after` | number (pt) | `6` | Space after each quote paragraph. |
 | `quote.border.color` | hex | *(none)* | Left bar color; empty = no bar. |
 | `quote.border.size` | number | `24` | Left bar thickness (⅛ pt). |
 | `quote.fill` | hex | *(none)* | Background fill; empty = none. |
@@ -672,6 +697,9 @@ text; set `quote.border.color` for a left bar or `quote.fill` for a shaded box.
 | `code.color` | hex | `333333` | Code text color. |
 | `code.fill` | hex | `F3F4F5` | Code block background. |
 | `code.indent` | number (cm) | `0.63` | Left/right indent of the block. |
+| `code.line_spacing` | number (×) | `1.0` | Line spacing (tight by default). |
+| `code.space_before` | number (pt) | `0` | Space before the block. |
+| `code.space_after` | number (pt) | `0` | Space after the block. |
 | `code.label.show` | bool | `true` | Show the language label chip. |
 | `code.label.fill` | hex | `E8E8E8` | Label background. |
 | `code.label.color` | hex | `666666` | Label text color. |
@@ -724,6 +752,9 @@ Legacy page‑number footer. For richer control use the `@footer` directive
 |:----|:-----|:--------|:------------|
 | `list.indent` | number (cm) | `0.63` | Indent per nesting level. |
 | `list.bullets` | string[] | `["•", "◦", "▪"]` | Bullet glyphs by depth. |
+| `list.line_spacing` | number (×) | `1.5` | Line spacing for list items. |
+| `list.space_before` | number (pt) | `0` | Space before each item. |
+| `list.space_after` | number (pt) | `2` | Space after each item. |
 
 #### `link`
 
@@ -751,11 +782,14 @@ body:
   font: Arial
   size: 11
   color: 1F272E
-  spacing_after: 6
+  line_spacing: 1.5   # multiple: 1 = single, 1.5, 2 = double (document-wide default)
+  space_before: 0     # pt
+  space_after: 6      # pt
   align: null    # null (=left) | center | right | left | justify — default alignment for all body paragraphs
 
 heading:
   font: Arial
+  line_spacing: 1.5    # shared by h1–h6; override per level with h{N}.line_spacing
   numbering:
     enabled: false   # native Word multilevel numbering (1, 1.1, 1.2.3 …)
     from: 1          # shallowest level numbered
@@ -766,8 +800,8 @@ heading:
     size: 20
     bold: true
     color: 1F272E
-    before: 20     # spacing before (pt)
-    after: 8       # spacing after (pt)
+    space_before: 20   # spacing before (pt)
+    space_after: 8     # spacing after (pt)
     align: null    # null | center | right
   h2:
     size: 16

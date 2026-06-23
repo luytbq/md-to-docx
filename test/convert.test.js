@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import JSZip from 'jszip';
 import { convert } from '../src/index.js';
+import { dropBlankAfterHeadingPagebreak } from '../src/renderer/document.js';
 
 // Extract word/document.xml from a generated .docx buffer (a zip) for assertions.
 async function documentXml(buffer) {
@@ -66,6 +67,62 @@ test('convert: page break rides on the next block (no standalone empty break par
   // not a dedicated empty one — i.e. pageBreakBefore appears in the same <w:p> as "text b").
   const breakPara = xml.match(/<w:p\b[^>]*>(?:(?!<\/w:p>).)*pageBreakBefore(?:(?!<\/w:p>).)*<\/w:p>/s);
   assert.ok(breakPara && /text b/.test(breakPara[0]));
+});
+
+test('dropBlankAfterHeadingPagebreak: drops one blank after a heading (gated)', () => {
+  const types = b => b.map(x => x.type);
+  // one blank after a heading is dropped when enabled
+  assert.deepEqual(
+    types(dropBlankAfterHeadingPagebreak([{ type: 'heading' }, { type: 'blank' }, { type: 'paragraph' }], true)),
+    ['heading', 'paragraph']);
+  // only the FIRST blank is dropped; a second survives
+  assert.deepEqual(
+    types(dropBlankAfterHeadingPagebreak([{ type: 'heading' }, { type: 'blank' }, { type: 'blank' }, { type: 'paragraph' }], true)),
+    ['heading', 'blank', 'paragraph']);
+  // disabled → blank after a heading is kept
+  assert.deepEqual(
+    types(dropBlankAfterHeadingPagebreak([{ type: 'heading' }, { type: 'blank' }, { type: 'paragraph' }], false)),
+    ['heading', 'blank', 'paragraph']);
+  // a blank after a pagebreak is always dropped, regardless of the heading toggle
+  assert.deepEqual(
+    types(dropBlankAfterHeadingPagebreak([{ type: 'pagebreak' }, { type: 'blank' }, { type: 'paragraph' }], false)),
+    ['pagebreak', 'paragraph']);
+  // a blank between two paragraphs is untouched
+  assert.deepEqual(
+    types(dropBlankAfterHeadingPagebreak([{ type: 'paragraph' }, { type: 'blank' }, { type: 'paragraph' }], true)),
+    ['paragraph', 'blank', 'paragraph']);
+});
+
+test('convert: blank line right after a heading is dropped by default', async () => {
+  const paras = xml => (xml.match(/<w:p\b/g) || []).length;
+  const on  = await documentXml((await convert('# H\n\nbody')).buffer);
+  const off = await documentXml((await convert('<!-- @config\nheading:\n  skip_blank_after: false\n-->\n# H\n\nbody')).buffer);
+  // disabling the toggle keeps an extra empty paragraph; enabling (default) drops it
+  assert.equal(paras(off), paras(on) + 1);
+});
+
+test('convert: body paragraphs get 1.5 line spacing by default', async () => {
+  const xml = await documentXml((await convert('para text')).buffer);
+  const para = xml.match(/<w:p>(?:(?!<\/w:p>).)*para text(?:(?!<\/w:p>).)*<\/w:p>/s);
+  assert.ok(para && /<w:spacing[^>]*w:line="360"[^>]*w:lineRule="auto"/.test(para[0]));
+});
+
+test('convert: code and tables stay tight (single line spacing)', async () => {
+  // CodeBlock paragraph style carries line 240 (set in styles.xml, inherited by each code line)
+  const { buffer } = await convert('```\ncode\n```');
+  const zip = await JSZip.loadAsync(buffer);
+  const styles = await zip.file('word/styles.xml').async('string');
+  const codeStyle = styles.match(/<w:style [^>]*w:styleId="CodeBlock"[\s\S]*?<\/w:style>/);
+  assert.ok(codeStyle && /<w:spacing[^>]*w:line="240"/.test(codeStyle[0]));
+  // table cell paragraphs set the tight spacing directly in document.xml
+  const table = await documentXml((await convert('| a | b |\n|---|---|\n| 1 | 2 |')).buffer);
+  assert.ok(/<w:spacing[^>]*w:line="240"/.test(table));
+});
+
+test('convert: body.line_spacing override flows through to the XML', async () => {
+  const xml = await documentXml((await convert('para text', { config: { body: { line_spacing: 2 } } })).buffer);
+  const para = xml.match(/<w:p>(?:(?!<\/w:p>).)*para text(?:(?!<\/w:p>).)*<\/w:p>/s);
+  assert.ok(para && /<w:spacing[^>]*w:line="480"/.test(para[0]));
 });
 
 test('convert: a trailing page break is dropped (no empty page)', async () => {

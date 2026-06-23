@@ -71,6 +71,20 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
   // merge helper: YAML wins over overrides wins over defaults
   const g = (path, def) => get(y, path, get(overrides, path, def));
 
+  // Resolve a paragraph-spacing object in docx units:
+  //   line  = line-spacing multiple → 240ths (1.5 → 360), with lineRule 'auto' (= LineRuleType.AUTO)
+  //   before/after = points → twips (* 20)
+  const spacing = (line, before, after) => ({
+    line: Math.round(Number(line) * 240),
+    lineRule: 'auto',
+    before: Math.round(Number(before) * 20),
+    after: Math.round(Number(after) * 20),
+  });
+  // Per-heading-level spacing: line spacing falls back from h{N}.line_spacing → heading.line_spacing.
+  const headingSpacing = (n, before, after) =>
+    spacing(g(`heading.h${n}.line_spacing`, g('heading.line_spacing', 1.5)),
+            g(`heading.h${n}.space_before`, before), g(`heading.h${n}.space_after`, after));
+
   return {
     title:          g('title', ''),
     outputFilename: g('output.filename', ''),
@@ -79,14 +93,15 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       margin: g('page.margin', 2),
     },
     body: {
-      font:         g('body.font', 'Arial'),
-      size:         g('body.size', 11),
-      color:        g('body.color', '1F272E'),
-      spacingAfter: g('body.spacing_after', 6),
-      align:        g('body.align', null),   // null=left; 'center'|'right'|'left'|'justify' apply to all body paragraphs
+      font:    g('body.font', 'Arial'),
+      size:    g('body.size', 11),
+      color:   g('body.color', '1F272E'),
+      spacing: spacing(g('body.line_spacing', 1.5), g('body.space_before', 0), g('body.space_after', 6)),
+      align:   g('body.align', null),   // null=left; 'center'|'right'|'left'|'justify' apply to all body paragraphs
     },
     heading: {
       font: g('heading.font', 'Arial'),
+      skipBlankAfter: g('heading.skip_blank_after', true),   // drop one blank line right after a heading
       numbering: {
         enabled:     g('heading.numbering.enabled', false),
         from:        g('heading.numbering.from', 1),
@@ -95,12 +110,12 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
         separator:   g('heading.numbering.separator', 'space'),  // space | tab | none
       },
       h: [null,
-        { size: g('heading.h1.size', 20), bold: g('heading.h1.bold', true),  italic: g('heading.h1.italic', false), color: g('heading.h1.color', '1F272E'), before: g('heading.h1.before', 20), after: g('heading.h1.after', 8),  align: g('heading.h1.align', null) },
-        { size: g('heading.h2.size', 16), bold: g('heading.h2.bold', true),  italic: g('heading.h2.italic', false), color: g('heading.h2.color', '1F272E'), before: g('heading.h2.before', 16), after: g('heading.h2.after', 7),  align: g('heading.h2.align', null) },
-        { size: g('heading.h3.size', 13), bold: g('heading.h3.bold', true),  italic: g('heading.h3.italic', false), color: g('heading.h3.color', '1F272E'), before: g('heading.h3.before', 13), after: g('heading.h3.after', 6),  align: g('heading.h3.align', null) },
-        { size: g('heading.h4.size', 11), bold: g('heading.h4.bold', true),  italic: g('heading.h4.italic', false), color: g('heading.h4.color', '1F272E'), before: g('heading.h4.before', 10), after: g('heading.h4.after', 5),  align: g('heading.h4.align', null) },
-        { size: g('heading.h5.size', 11), bold: g('heading.h5.bold', true),  italic: g('heading.h5.italic', true),  color: g('heading.h5.color', '1F272E'), before: g('heading.h5.before', 8),  after: g('heading.h5.after', 4),  align: g('heading.h5.align', null) },
-        { size: g('heading.h6.size', 10), bold: g('heading.h6.bold', false), italic: g('heading.h6.italic', true),  color: g('heading.h6.color', '555555'), before: g('heading.h6.before', 6),  after: g('heading.h6.after', 3),  align: g('heading.h6.align', null) },
+        { size: g('heading.h1.size', 20), bold: g('heading.h1.bold', true),  italic: g('heading.h1.italic', false), color: g('heading.h1.color', '1F272E'), spacing: headingSpacing(1, 20, 8), align: g('heading.h1.align', null) },
+        { size: g('heading.h2.size', 16), bold: g('heading.h2.bold', true),  italic: g('heading.h2.italic', false), color: g('heading.h2.color', '1F272E'), spacing: headingSpacing(2, 16, 7), align: g('heading.h2.align', null) },
+        { size: g('heading.h3.size', 13), bold: g('heading.h3.bold', true),  italic: g('heading.h3.italic', false), color: g('heading.h3.color', '1F272E'), spacing: headingSpacing(3, 13, 6), align: g('heading.h3.align', null) },
+        { size: g('heading.h4.size', 11), bold: g('heading.h4.bold', true),  italic: g('heading.h4.italic', false), color: g('heading.h4.color', '1F272E'), spacing: headingSpacing(4, 10, 5), align: g('heading.h4.align', null) },
+        { size: g('heading.h5.size', 11), bold: g('heading.h5.bold', true),  italic: g('heading.h5.italic', true),  color: g('heading.h5.color', '1F272E'), spacing: headingSpacing(5, 8,  4), align: g('heading.h5.align', null) },
+        { size: g('heading.h6.size', 10), bold: g('heading.h6.bold', false), italic: g('heading.h6.italic', true),  color: g('heading.h6.color', '555555'), spacing: headingSpacing(6, 6,  3), align: g('heading.h6.align', null) },
       ],
     },
     table: {
@@ -115,12 +130,13 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       border:      g('table.border', 'C0C8D0'),
       borderSize:  g('table.border_size', 4),
       cellPad:     Math.round(g('table.cell_padding', 0.15) * 567),
+      spacing:     spacing(g('table.line_spacing', 1.0), g('table.space_before', 0), g('table.space_after', 0)),
     },
     quote: {
       color:        g('quote.color', '1F272E'),     // = body.color default
       italic:       g('quote.italic', true),
       indentDXA:    Math.round(g('quote.indent', 0.63) * 567),
-      spacingAfter: g('quote.spacing_after', 6),
+      spacing:      spacing(g('quote.line_spacing', 1.5), g('quote.space_before', 0), g('quote.space_after', 6)),
       // off by default — set to enable a left bar / shaded box
       borderColor:  g('quote.border.color', ''),
       borderSize:   g('quote.border.size', 24),
@@ -132,6 +148,7 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       color:      g('code.color', '333333'),
       fill:       g('code.fill', 'F3F4F5'),
       indentDXA:  Math.round(g('code.indent', 0.63) * 567),
+      spacing:    spacing(g('code.line_spacing', 1.0), g('code.space_before', 0), g('code.space_after', 0)),
       labelShow:  g('code.label.show', true),
       labelFill:  g('code.label.fill', 'E8E8E8'),
       labelColor: g('code.label.color', '666666'),
@@ -169,6 +186,7 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
     list: {
       indentDXA: Math.round(g('list.indent', 0.63) * 567),
       bullets:   g('list.bullets', null) || ['•', '◦', '▪'],
+      spacing:   spacing(g('list.line_spacing', 1.5), g('list.space_before', 0), g('list.space_after', 2)),
     },
     link: { color: g('link.color', '0563C1') },
     image: { caption: g('image.caption', true) },

@@ -11,7 +11,7 @@ export function imageBlock(block, cfg, CW, baseDir, warnings, ctx = {}, pageBrea
     imgBuf = readFileSync(imgPath);
   } catch (_) {
     warnings.push({ type: 'image', message: `Cannot read image: ${imgPath}` });
-    return [new Paragraph({ children: [], spacing: { after: cfg.body.spacingAfter * 20 }, pageBreakBefore })];
+    return [new Paragraph({ children: [], spacing: { after: cfg.body.spacing.after }, pageBreakBefore })];
   }
   const { w, h } = pngDims(imgBuf);
   const maxW = Math.round(CW / 15);
@@ -24,10 +24,10 @@ export function imageBlock(block, cfg, CW, baseDir, warnings, ctx = {}, pageBrea
   const ext = imgPath.split('.').pop().toLowerCase();
   const imgType = ext === 'jpg' ? 'jpeg' : ext;
   const paras = [
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imgBuf, transformation: { width: imgPxW, height: imgPxH }, type: imgType })], spacing: { after: cfg.image.caption && block.alt ? 40 : cfg.body.spacingAfter * 20 }, pageBreakBefore }),
+    new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imgBuf, transformation: { width: imgPxW, height: imgPxH }, type: imgType })], spacing: { after: cfg.image.caption && block.alt ? 40 : cfg.body.spacing.after }, pageBreakBefore }),
   ];
   if (cfg.image.caption && block.alt) {
-    paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: makeRuns(`_${block.alt}_`, {}, cfg, ctx), spacing: { after: cfg.body.spacingAfter * 20 } }));
+    paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: makeRuns(`_${block.alt}_`, {}, cfg, ctx), spacing: { after: cfg.body.spacing.after } }));
   }
   return paras;
 }

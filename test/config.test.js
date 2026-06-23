@@ -89,6 +89,35 @@ test('buildConfig: image caption can be disabled', () => {
   assert.equal(cfg.image.caption, false);
 });
 
+test('buildConfig: spacing defaults (line 1.5 + space before/after in docx units)', () => {
+  const cfg = buildConfig('', {});
+  // body: line 1.5 → 360 (240ths), before 0pt → 0, after 6pt → 120 twips
+  assert.deepEqual(cfg.body.spacing, { line: 360, lineRule: 'auto', before: 0, after: 120 });
+  // heading h1: shared line 1.5 → 360, before 20pt → 400, after 8pt → 160
+  assert.equal(cfg.heading.h[1].spacing.line, 360);
+  assert.equal(cfg.heading.h[1].spacing.before, 400);
+  assert.equal(cfg.heading.h[1].spacing.after, 160);
+  // list: after 2pt → 40 twips (was the old hardcoded value)
+  assert.equal(cfg.list.spacing.after, 40);
+  assert.equal(cfg.list.spacing.line, 360);
+  // code & table are tight (line 1.0 → 240)
+  assert.equal(cfg.code.spacing.line, 240);
+  assert.equal(cfg.table.spacing.line, 240);
+});
+
+test('buildConfig: line_spacing override per type', () => {
+  assert.equal(buildConfig('body:\n  line_spacing: 2', {}).body.spacing.line, 480);
+  assert.equal(buildConfig('body:\n  space_before: 3', {}).body.spacing.before, 60);
+});
+
+test('buildConfig: heading.line_spacing applies to all levels; per-level wins', () => {
+  const shared = buildConfig('heading:\n  line_spacing: 1', {});
+  for (let n = 1; n <= 6; n++) assert.equal(shared.heading.h[n].spacing.line, 240);
+  const override = buildConfig('heading:\n  line_spacing: 1\n  h1:\n    line_spacing: 2', {});
+  assert.equal(override.heading.h[1].spacing.line, 480);   // per-level override wins
+  assert.equal(override.heading.h[2].spacing.line, 240);   // others keep the shared value
+});
+
 test('buildConfig: heading numbering defaults (off, h1-h3, dotted)', () => {
   const cfg = buildConfig('', {});
   assert.equal(cfg.heading.numbering.enabled, false);

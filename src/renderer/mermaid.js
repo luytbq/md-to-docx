@@ -70,7 +70,7 @@ export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, k
       const sFit = Math.max(maxH / h, sMin);
       imgPxW = Math.round(w * sFit); imgPxH = Math.round(h * sFit);
     }
-    paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imgBuf, transformation: { width: imgPxW, height: imgPxH }, type: 'png' })], spacing: { after: cfg.body.spacingAfter * 20 }, pageBreakBefore: pageBreakBefore && paras.length === 0 }));
+    paras.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imgBuf, transformation: { width: imgPxW, height: imgPxH }, type: 'png' })], spacing: { after: cfg.body.spacing.after }, pageBreakBefore: pageBreakBefore && paras.length === 0 }));
   }
 
   if (keepMermaidText) paras.push(...mermaidCodeBlock(code, cfg));

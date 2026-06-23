@@ -99,8 +99,27 @@ function runningParagraph(zones, cfg, CW, vars) {
   });
 }
 
+// Drop exactly the FIRST blank block immediately following a heading (gated by
+// skipHeading) or a pagebreak (always). The second+ consecutive blank is kept, so an
+// author who deliberately adds vertical space still gets it.
+export function dropBlankAfterHeadingPagebreak(blocks, skipHeading) {
+  const out = [];
+  let prevType = null;
+  for (const b of blocks) {
+    if (b.type === 'blank' &&
+        ((prevType === 'heading' && skipHeading) || prevType === 'pagebreak')) {
+      prevType = 'blank';   // mark as consumed → the next blank survives
+      continue;
+    }
+    out.push(b);
+    prevType = b.type;
+  }
+  return out;
+}
+
 export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = false, splitTall = false, header = null, footer = null, vars = {} } = {}) {
   const warnings = [];
+  blocks = dropBlankAfterHeadingPagebreak(blocks, cfg.heading.skipBlankAfter);
   const PAGE = PAGE_SIZES[cfg.page.size] ?? PAGE_SIZES.A4;
   const mg = typeof cfg.page.margin === 'object' ? cfg.page.margin
     : { top: cfg.page.margin, right: cfg.page.margin, bottom: cfg.page.margin, left: cfg.page.margin };
@@ -205,7 +224,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
     } else if (b.type === 'paragraph') {
       const align = b.align || cfg.body.align;   // per-paragraph @style align overrides the document-wide body.align default
       const pAlign = align === 'center' ? AlignmentType.CENTER : align === 'right' ? AlignmentType.RIGHT : align === 'left' ? AlignmentType.LEFT : align === 'justify' ? AlignmentType.JUSTIFIED : undefined;
-      const pPara = { children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: cfg.body.spacingAfter * 20 } };
+      const pPara = { children: makeRuns(b.text, {}, cfg, ctx), spacing: cfg.body.spacing };
       if (pAlign) pPara.alignment = pAlign;
       if (b.pageBreakBefore) pPara.pageBreakBefore = true;
       children.push(new Paragraph(pPara));
@@ -215,7 +234,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       const base = { italics: q.italic, color: q.color };
       const border = q.borderColor ? { left: { style: BorderStyle.SINGLE, size: q.borderSize, color: q.borderColor, space: 8 } } : undefined;
       b.paras.forEach((text, pi) => {
-        const opts = { children: makeRuns(text, base, cfg, ctx), indent: { left: q.indentDXA }, spacing: { after: q.spacingAfter * 20 } };
+        const opts = { children: makeRuns(text, base, cfg, ctx), indent: { left: q.indentDXA }, spacing: q.spacing };
         if (border) opts.border = border;
         if (q.fill) opts.shading = { fill: q.fill, type: ShadingType.CLEAR };
         if (pi === 0 && b.pageBreakBefore) opts.pageBreakBefore = true;
@@ -223,11 +242,11 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       });
 
     } else if (b.type === 'bullet') {
-      children.push(new Paragraph({ numbering: { reference: 'bullet', level: b.indent }, children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: 40 }, pageBreakBefore: b.pageBreakBefore }));
+      children.push(new Paragraph({ numbering: { reference: 'bullet', level: b.indent }, children: makeRuns(b.text, {}, cfg, ctx), spacing: cfg.list.spacing, pageBreakBefore: b.pageBreakBefore }));
 
     } else if (b.type === 'numbered') {
       if (!inNumberedList) { numInstance++; inNumberedList = true; }
-      children.push(new Paragraph({ numbering: { reference: 'number', level: b.indent, instance: numInstance }, children: makeRuns(b.text, {}, cfg, ctx), spacing: { after: 40 }, pageBreakBefore: b.pageBreakBefore }));
+      children.push(new Paragraph({ numbering: { reference: 'number', level: b.indent, instance: numInstance }, children: makeRuns(b.text, {}, cfg, ctx), spacing: cfg.list.spacing, pageBreakBefore: b.pageBreakBefore }));
 
     } else if (b.type === 'codeblock') {
       if (b.lang === 'mermaid') {
@@ -256,7 +275,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
   const headingStyles = cfg.heading.h.slice(1).map((h, i) => ({
     id: `Heading${i + 1}`, name: `Heading ${i + 1}`, basedOn: 'Normal', next: 'Normal', quickFormat: true,
     run: { font: cfg.heading.font, size: h.size * 2, bold: h.bold, italics: h.italic, color: h.color },
-    paragraph: { spacing: { before: h.before * 20, after: h.after * 20 }, outlineLevel: i },
+    paragraph: { spacing: h.spacing, outlineLevel: i },
   }));
 
   const bullets = Array.isArray(cfg.list.bullets) ? cfg.list.bullets : ['•', '◦', '▪'];
@@ -322,18 +341,18 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       ],
     },
     styles: {
-      default: { document: { run: { font: cfg.body.font, size: cfg.body.size * 2, color: cfg.body.color } } },
+      default: { document: { run: { font: cfg.body.font, size: cfg.body.size * 2, color: cfg.body.color }, paragraph: { spacing: { line: cfg.body.spacing.line, lineRule: cfg.body.spacing.lineRule } } } },
       paragraphStyles: [
         ...headingStyles,
         {
           id: 'CodeBlock', name: 'Code Block', basedOn: 'Normal', next: 'Normal',
           run: { font: cfg.code.font, size: cfg.code.size * 2, color: cfg.code.color },
-          paragraph: { shading: { fill: cfg.code.fill, type: ShadingType.CLEAR }, spacing: { before: 0, after: 0 }, indent: { left: cfg.code.indentDXA, right: cfg.code.indentDXA } },
+          paragraph: { shading: { fill: cfg.code.fill, type: ShadingType.CLEAR }, spacing: cfg.code.spacing, indent: { left: cfg.code.indentDXA, right: cfg.code.indentDXA } },
         },
         {
           id: 'MermaidCodeBlock', name: 'Mermaid Code Block', basedOn: 'Normal', next: 'Normal',
           run: { font: cfg.mermaidCode.font, size: cfg.mermaidCode.size * 2, color: cfg.mermaidCode.color },
-          paragraph: { shading: { fill: cfg.mermaidCode.fill, type: ShadingType.CLEAR }, spacing: { before: 0, after: 0 }, indent: { left: cfg.code.indentDXA, right: cfg.code.indentDXA } },
+          paragraph: { shading: { fill: cfg.mermaidCode.fill, type: ShadingType.CLEAR }, spacing: cfg.code.spacing, indent: { left: cfg.code.indentDXA, right: cfg.code.indentDXA } },
         },
       ],
     },

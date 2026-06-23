@@ -45,6 +45,10 @@ vars:
 
 `@doc` keys → `{doc.*}` variables. `@config vars:` → `{vars.*}`. Later blocks win on key collision.
 
+**Spacing** — every block type (`body`, `heading` + per-level `h1`…`h6`, `list`, `quote`, `table`,
+`code`) takes `line_spacing` (multiple; default `1.5`, but `code`/`table` = `1.0`), `space_before`,
+and `space_after` (pt). `heading.line_spacing` is shared by all levels unless a level overrides it.
+
 ## Directives
 
 | Directive | Purpose | Example |
@@ -101,6 +105,8 @@ Watch out — these differ from CommonMark:
   (except a line-starting inline `@style`, which falls through). Mid-line comments are *not* stripped.
 - **Escape `\|` inside table cells.** Use `<br>` for a line break inside a cell or a styled span.
 - Consecutive numbered lists restart at 1 when separated by a paragraph.
+- **One blank line right after a heading is dropped** (no extra empty paragraph below it; disable via
+  `heading.skip_blank_after: false`). The blank line after a `@pagebreak` is always dropped.
 
 ## Mermaid
 

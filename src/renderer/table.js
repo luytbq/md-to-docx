@@ -19,7 +19,7 @@ export function tcell(text, { width, bold = false, italic = false, color, fill, 
   const rOpts = { bold, italics: italic, size: (size ?? cfg.table.rowSize) * 2, font: cfg.body.font };
   if (color) rOpts.color = color;
   const cellOpts = {
-    children: [new Paragraph({ alignment: atype(align), spacing: { after: 0 }, children: makeRuns(text, rOpts, cfg, ctx), pageBreakBefore })],
+    children: [new Paragraph({ alignment: atype(align), spacing: cfg.table.spacing, children: makeRuns(text, rOpts, cfg, ctx), pageBreakBefore })],
     margins: pad(cfg),
     verticalAlign: VerticalAlign.TOP,
     borders: b ?? borders(cfg),
