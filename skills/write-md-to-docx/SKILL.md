@@ -96,9 +96,10 @@ blockquotes, `---` HR all work.
 
 Watch out — these differ from CommonMark:
 
-- **No paragraph merging.** Each non-blank line is its own block. To keep text together, let it ride
-  as **lazy continuation**: an unmarked line *immediately after* a bullet/numbered item is appended
-  to that item (no blank line between).
+- **No paragraph merging.** Each non-blank line is its own block. To extend a list item onto more
+  lines, let them ride as **lazy continuation**: an unmarked line *immediately after* a bullet/numbered
+  item is appended to that item **on a new line** (the newline becomes a hard line break, not a space;
+  no blank line between).
 - **List nesting caps at level 2**; indent is relative (2- or 4-space schemes both work). Any
   heading/code/table/quote/image/HR resets the list.
 - **A line starting with `<!--` is consumed as a comment/directive** and won't render as text

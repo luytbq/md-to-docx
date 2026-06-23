@@ -14,6 +14,12 @@ const HL = [null, HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.H
 
 const PAGE_SIZES = { A4: [11906, 16838], Letter: [12240, 15840] };
 
+// Map an align string (center/right/left/justify) to a docx AlignmentType; undefined = inherit (left).
+const alignType = a => a === 'center' ? AlignmentType.CENTER
+  : a === 'right' ? AlignmentType.RIGHT
+  : a === 'left' ? AlignmentType.LEFT
+  : a === 'justify' ? AlignmentType.JUSTIFIED : undefined;
+
 function blank(cfg) {
   return new Paragraph({ children: [new TextRun({ text: '', font: cfg.body.font })], spacing: { after: 40 } });
 }
@@ -223,7 +229,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
 
     } else if (b.type === 'paragraph') {
       const align = b.align || cfg.body.align;   // per-paragraph @style align overrides the document-wide body.align default
-      const pAlign = align === 'center' ? AlignmentType.CENTER : align === 'right' ? AlignmentType.RIGHT : align === 'left' ? AlignmentType.LEFT : align === 'justify' ? AlignmentType.JUSTIFIED : undefined;
+      const pAlign = alignType(align);
       const pPara = { children: makeRuns(b.text, {}, cfg, ctx), spacing: cfg.body.spacing };
       if (pAlign) pPara.alignment = pAlign;
       if (b.pageBreakBefore) pPara.pageBreakBefore = true;
@@ -242,11 +248,11 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       });
 
     } else if (b.type === 'bullet') {
-      children.push(new Paragraph({ numbering: { reference: 'bullet', level: b.indent }, children: makeRuns(b.text, {}, cfg, ctx), spacing: cfg.list.spacing, pageBreakBefore: b.pageBreakBefore }));
+      children.push(new Paragraph({ numbering: { reference: 'bullet', level: b.indent }, children: makeRuns(b.text, {}, cfg, ctx), spacing: cfg.list.spacing, alignment: alignType(cfg.body.align), pageBreakBefore: b.pageBreakBefore }));
 
     } else if (b.type === 'numbered') {
       if (!inNumberedList) { numInstance++; inNumberedList = true; }
-      children.push(new Paragraph({ numbering: { reference: 'number', level: b.indent, instance: numInstance }, children: makeRuns(b.text, {}, cfg, ctx), spacing: cfg.list.spacing, pageBreakBefore: b.pageBreakBefore }));
+      children.push(new Paragraph({ numbering: { reference: 'number', level: b.indent, instance: numInstance }, children: makeRuns(b.text, {}, cfg, ctx), spacing: cfg.list.spacing, alignment: alignType(cfg.body.align), pageBreakBefore: b.pageBreakBefore }));
 
     } else if (b.type === 'codeblock') {
       if (b.lang === 'mermaid') {

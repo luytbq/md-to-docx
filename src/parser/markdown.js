@@ -119,10 +119,12 @@ export function parseMarkdown(md) {
       blocks.push(image); i++; continue;
     }
 
-    // Lazy continuation — a line that is no other construct, right after a list item, joins it.
+    // Lazy continuation — a line that is no other construct, right after a list item, joins it
+    // as a new line (hard break, via the `<br>` marker that inline.js turns into a line break),
+    // so the newline the author typed is preserved instead of collapsing into a space.
     const prev = blocks[blocks.length - 1];
     if (prev && (prev.type === 'bullet' || prev.type === 'numbered')) {
-      prev.text += ' ' + trimmed;
+      prev.text += '<br>' + trimmed;
       i++; continue;
     }
 

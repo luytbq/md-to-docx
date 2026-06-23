@@ -142,7 +142,7 @@ A right-aligned, red note
   schemes work. Bullet depth is capped at three levels (configurable glyphs via
   [`list.bullets`](#list)).
 - **Lazy continuation:** a plain line directly after a list item is appended to
-  that item's text.
+  that item on a new line (the newline becomes a hard line break, not a space).
 - **Numbered lists restart at 1.** Any real content block (paragraph, heading,
   table, …) between two numbered lists starts a fresh sequence; blank lines and
   nested bullets do not break it.
@@ -772,7 +772,8 @@ Legacy page‑number footer. For richer control use the `@footer` directive
 
 ```markdown
 <!-- @config
-title: My Report
+doc:
+  title: My Report   # referenced as {doc.title} in headers/footers/body
 
 page:
   size: A4         # A4 | Letter
@@ -862,7 +863,7 @@ output:
   filename: my-report
 -->
 
-<!-- @header center="{title}" size=9 color=888888 border_bottom=true skip_on_first_page=true -->
+<!-- @header center="{doc.title}" size=9 color=888888 border_bottom=true skip_on_first_page=true -->
 <!-- @footer center="Page {page} of {pages}" size=9 color=888888 border_top=true skip_on_first_page=true -->
 
 # Document starts here

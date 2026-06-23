@@ -78,11 +78,12 @@ test('parseMarkdown: bullet de-indent pops back to outer level', () => {
   assert.deepEqual(blocks.map(b => b.indent), [0, 1, 0]);
 });
 
-test('parseMarkdown: lazy continuation merges into previous list item', () => {
+test('parseMarkdown: lazy continuation merges into previous list item (hard break)', () => {
   const blocks = parseMarkdown('- first line\ncontinued here');
   assert.equal(blocks.length, 1);
   assert.equal(blocks[0].type, 'bullet');
-  assert.equal(blocks[0].text, 'first line continued here');
+  // joined as a new line (<br>) so the author's newline is preserved, not a space
+  assert.equal(blocks[0].text, 'first line<br>continued here');
 });
 
 test('parseMarkdown: lazy continuation does not cross a blank line', () => {

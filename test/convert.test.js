@@ -125,6 +125,30 @@ test('convert: body.line_spacing override flows through to the XML', async () =>
   assert.ok(para && /<w:spacing[^>]*w:line="480"/.test(para[0]));
 });
 
+test('convert: body.align justify applies to list items too', async () => {
+  const bullet = await documentXml((await convert('- item one', { config: { body: { align: 'justify' } } })).buffer);
+  const numbered = await documentXml((await convert('1. item one', { config: { body: { align: 'justify' } } })).buffer);
+  assert.ok(/<w:jc w:val="both"\/>/.test(bullet));    // JUSTIFIED renders as w:jc="both"
+  assert.ok(/<w:jc w:val="both"\/>/.test(numbered));
+  // default (no align) leaves list items unaligned (left)
+  const plain = await documentXml((await convert('- item one')).buffer);
+  assert.equal(/<w:jc /.test(plain), false);
+});
+
+test('convert: lazy continuation under a list item keeps the line break', async () => {
+  const bullet = await documentXml((await convert('- first line\ncontinued here')).buffer);
+  // one bullet (single numbering ref) containing a hard line break between the two lines
+  assert.ok(/<w:br\/>/.test(bullet));
+  assert.equal((bullet.match(/<w:numPr>/g) || []).length, 1);
+  assert.ok(/first line/.test(bullet) && /continued here/.test(bullet));
+  // numbered list behaves the same
+  const numbered = await documentXml((await convert('1. a\nb')).buffer);
+  assert.ok(/<w:br\/>/.test(numbered));
+  // a blank line still ends the item (no break merged); the next text is its own paragraph
+  const split = await documentXml((await convert('- item\n\nnow a paragraph')).buffer);
+  assert.equal(/<w:br\/>/.test(split), false);
+});
+
 test('convert: a trailing page break is dropped (no empty page)', async () => {
   const { buffer } = await convert('last line\n\n<!-- @pagebreak -->');
   const xml = await documentXml(buffer);
