@@ -454,7 +454,7 @@ stay literal):
 | `color` | hex | `body.color` | text color (6‑digit hex, no `#`; quote in YAML to keep leading zeros) |
 | `border_top` | bool | `false` | rule above the line (footer) |
 | `border_bottom` | bool | `false` | rule below the line (header) |
-| `skip_on_first_page` | bool | `false` | omit on page 1 (uses a Word title‑page section); later pages keep it. Handy when page 1 is a hand‑written cover |
+| `skip_on_first_page` | bool \| int | `false` | leave the first page(s) un‑numbered. `true` (=`1`) blanks page 1 via a Word title‑page section. An integer **N** splits the doc into its own section after the **N‑th `@pagebreak`**: the leading section gets no header/footer at all (incl. borders) and the body section **restarts page numbering at 1**. N counts page‑break‑delimited segments, not rendered pages — set N on `@header`/`@footer`; the larger of the two wins and applies to both. With fewer than N page breaks it falls back to blanking page 1 only (and warns). |
 | `page_number` | bool | `false` | shorthand: when set with no zones, places `{page}` in the right zone |
 
 A `@footer` directive overrides the legacy [`footer.page_number`](#footer) config.

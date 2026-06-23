@@ -1,6 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Bookmark,
          AlignmentType, BorderStyle, ShadingType, LevelFormat, LevelSuffix, Header, Footer, PageNumber,
-         Tab, TabStopType } from 'docx';
+         Tab, TabStopType, SectionType } from 'docx';
 import { makeRuns } from '../parser/inline.js';
 import { slugify } from '../parser/slug.js';
 import { mdTable } from './table.js';
@@ -155,7 +155,35 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
     }
   }
 
+  // ── Skip page numbering on the first N "pages" ───────────────────────────────
+  // `skip_on_first_page` on @header/@footer accepts a bool (=1) or an integer N. The
+  // numbered body then starts after the N-th explicit page break (@pagebreak), split
+  // into its own Word section: the leading section carries no header/footer (fully
+  // blank, incl. borders) and the body section restarts page numbering at 1. N counts
+  // page-break-delimited segments, not rendered pages — content that overflows onto extra
+  // pages without an explicit break stays in the same segment. With fewer than N breaks we
+  // fall back to a Word title-page (blanks page 1 only, no restart) and warn.
+  const parseSkip = z => {
+    if (!z) return 0;
+    const v = z.skip_on_first_page;
+    if (v === true || v === 'true') return 1;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  };
+  const skipN = Math.max(parseSkip(header), parseSkip(footer));
+  const breakBlocks = renderBlocks.filter(b => b.pageBreakBefore === true);
+  const effSkipN = Math.min(skipN, breakBlocks.length);
+  if (skipN >= 1 && effSkipN >= 1) {
+    const boundary = breakBlocks[effSkipN - 1];
+    boundary.pageBreakBefore = false;   // the section break itself starts the new page
+    boundary._isSectionBoundary = true;
+  }
+  if (skipN >= 1 && effSkipN < skipN)
+    warnings.push({ type: 'skip-pages', message: `skip_on_first_page=${skipN} needs ${skipN} @pagebreak boundary(ies) to restart numbering; found ${breakBlocks.length} — ${effSkipN >= 1 ? `skipping the first ${effSkipN}` : 'blanking the first page only (no renumber)'}` });
+
+  let splitIndex = -1;
   for (const b of renderBlocks) {
+    if (b._isSectionBoundary) splitIndex = children.length;
     if (RESETS_NUMBERING(b)) inNumberedList = false;
 
     if (b.type === 'heading') {
@@ -235,24 +263,42 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
 
   // Running header/footer. A `@header`/`@footer` directive (3 zones + tokens) wins;
   // otherwise legacy `cfg.footer.pageNumber` renders a right-aligned page number.
-  // `skip_on_first_page` uses a Word title-page section (`titlePage`) so page 1 gets
-  // an empty `first` header/footer while later pages keep the `default` one.
-  const isTrue = v => v === true || v === 'true';
   if (footer && footer.page_number && !footer.left && !footer.center && !footer.right) footer.right = '{page}';
-  const skipHeaderFirst = !!(header && isTrue(header.skip_on_first_page));
-  const skipFooterFirst = !!(footer && isTrue(footer.skip_on_first_page));
-  const titlePage = skipHeaderFirst || skipFooterFirst;
   const emptyPara = () => new Paragraph({ children: [] });
-
-  let headersOpt, footersOpt;
-  if (header) {
-    headersOpt = { default: new Header({ children: [runningParagraph(header, cfg, CW, vars)] }) };
-    if (titlePage) headersOpt.first = skipHeaderFirst ? new Header({ children: [emptyPara()] }) : new Header({ children: [runningParagraph(header, cfg, CW, vars)] });
-  }
   const footerZones = footer ?? (cfg.footer.pageNumber ? { right: '{page}' } : null);
-  if (footerZones) {
-    footersOpt = { default: new Footer({ children: [runningParagraph(footerZones, cfg, CW, vars)] }) };
-    if (titlePage) footersOpt.first = skipFooterFirst ? new Footer({ children: [emptyPara()] }) : new Footer({ children: [runningParagraph(footerZones, cfg, CW, vars)] });
+  const mkHeader = () => new Header({ children: [runningParagraph(header, cfg, CW, vars)] });
+  const mkFooter = () => new Footer({ children: [runningParagraph(footerZones, cfg, CW, vars)] });
+
+  const basePage = { size: { width: PAGE[0], height: PAGE[1] }, margin: MG };
+  let sectionsOpt;
+  if (splitIndex > 0) {
+    // Two sections: blank front matter, then the numbered body restarting at page 1.
+    const bodyHF = {};
+    if (header)      bodyHF.headers = { default: mkHeader() };
+    if (footerZones) bodyHF.footers = { default: mkFooter() };
+    sectionsOpt = [
+      { properties: { type: SectionType.NEXT_PAGE, page: basePage }, children: children.slice(0, splitIndex) },
+      { properties: { type: SectionType.NEXT_PAGE, page: { ...basePage, pageNumbers: { start: 1 } } }, children: children.slice(splitIndex), ...bodyHF },
+    ];
+  } else {
+    // Single section. When skip was requested but couldn't be split (too few page
+    // breaks), fall back to a Word title-page that blanks only the first page.
+    const titlePage = skipN >= 1;
+    let headersOpt, footersOpt;
+    if (header) {
+      headersOpt = { default: mkHeader() };
+      if (titlePage) headersOpt.first = new Header({ children: [emptyPara()] });
+    }
+    if (footerZones) {
+      footersOpt = { default: mkFooter() };
+      if (titlePage) footersOpt.first = new Footer({ children: [emptyPara()] });
+    }
+    sectionsOpt = [{
+      properties: { page: basePage, ...(titlePage ? { titlePage: true } : {}) },
+      children,
+      ...(headersOpt ? { headers: headersOpt } : {}),
+      ...(footersOpt ? { footers: footersOpt } : {}),
+    }];
   }
 
   const doc = new Document({
@@ -291,12 +337,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
         },
       ],
     },
-    sections: [{
-      properties: { page: { size: { width: PAGE[0], height: PAGE[1] }, margin: MG }, ...(titlePage ? { titlePage: true } : {}) },
-      children,
-      ...(headersOpt ? { headers: headersOpt } : {}),
-      ...(footersOpt ? { footers: footersOpt } : {}),
-    }],
+    sections: sectionsOpt,
   });
 
   const buffer = await Packer.toBuffer(doc);

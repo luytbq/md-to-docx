@@ -329,3 +329,22 @@ test('convert: @footer skip_on_first_page builds (title-page section)', async ()
   const { buffer } = await convert('<!-- @footer center="{page}" skip_on_first_page=true -->\n# H\n\nbody');
   assert.ok(buffer.length > 0);
 });
+
+test('convert: skip_on_first_page=N splits into two sections, restarts numbering', async () => {
+  const md = '<!-- @footer center="{page}" skip_on_first_page=2 -->\n' +
+    '# Cover\n\ntext\n\n<!-- @pagebreak -->\n# TOC\n\ntext\n\n<!-- @pagebreak -->\n# Body\n\ntext';
+  const { buffer, warnings } = await convert(md);
+  assert.equal(warnings.filter(w => w.type === 'skip-pages').length, 0);
+  const { default: JSZip } = await import('jszip');
+  const xml = await (await JSZip.loadAsync(buffer)).file('word/document.xml').async('string');
+  const sects = xml.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/g) || [];
+  assert.equal(sects.length, 2, 'expected two sections');
+  assert.ok(!/headerReference|footerReference/.test(sects[0]), 'front section has no header/footer');
+  assert.ok(/footerReference/.test(sects[1]), 'body section keeps the footer');
+  assert.ok(/w:pgNumType w:start="1"/.test(sects[1]), 'body section restarts numbering at 1');
+});
+
+test('convert: skip_on_first_page=N warns and falls back when too few page breaks', async () => {
+  const { warnings } = await convert('<!-- @footer center="{page}" skip_on_first_page=2 -->\n# H\n\nbody');
+  assert.ok(warnings.some(w => w.type === 'skip-pages'));
+});

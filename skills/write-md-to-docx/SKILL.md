@@ -56,8 +56,9 @@ vars:
 | `@style` | Inline / block run styling | see below |
 
 Header/footer args: `left=`, `center=`, `right=` (quote values with spaces), plus `size`, `color`,
-`font`, `border_top`/`border_bottom`, `skip_on_first_page`. `{page}`/`{pages}` become real
-page-number fields **only here** (in body they stay literal).
+`font`, `border_top`/`border_bottom`, `skip_on_first_page` (bool, or an int N to leave the
+first N `@pagebreak` segments un-numbered and restart page numbering at 1 after them).
+`{page}`/`{pages}` become real page-number fields **only here** (in body they stay literal).
 
 ## @style — three forms
 
