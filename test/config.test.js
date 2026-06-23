@@ -91,9 +91,9 @@ test('buildConfig: image caption can be disabled', () => {
 
 test('buildConfig: spacing defaults (line 1.5 + space before/after in docx units)', () => {
   const cfg = buildConfig('', {});
-  // body: line 1.5 → 360 (240ths), before 0pt → 0, after 6pt → 120 twips
-  assert.deepEqual(cfg.body.spacing, { line: 360, lineRule: 'auto', before: 0, after: 120 });
-  // heading h1: shared line 1.5 → 360, before 20pt → 400, after 8pt → 160
+  // body: line 1.25 → 300 (240ths), before 0pt → 0, after 6pt → 120 twips
+  assert.deepEqual(cfg.body.spacing, { line: 300, lineRule: 'auto', before: 0, after: 120 });
+  // heading h1: shared line 1.5 (unchanged default) → 360, before 20pt → 400, after 8pt → 160
   assert.equal(cfg.heading.h[1].spacing.line, 360);
   assert.equal(cfg.heading.h[1].spacing.before, 400);
   assert.equal(cfg.heading.h[1].spacing.after, 160);

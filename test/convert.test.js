@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import JSZip from 'jszip';
 import { convert } from '../src/index.js';
-import { dropBlankAfterHeadingPagebreak } from '../src/renderer/document.js';
+import { dropBlankAroundBreaks } from '../src/renderer/document.js';
 
 // Extract word/document.xml from a generated .docx buffer (a zip) for assertions.
 async function documentXml(buffer) {
@@ -69,27 +69,43 @@ test('convert: page break rides on the next block (no standalone empty break par
   assert.ok(breakPara && /text b/.test(breakPara[0]));
 });
 
-test('dropBlankAfterHeadingPagebreak: drops one blank after a heading (gated)', () => {
+test('dropBlankAroundBreaks: drops blanks before/after break elements', () => {
   const types = b => b.map(x => x.type);
   // one blank after a heading is dropped when enabled
   assert.deepEqual(
-    types(dropBlankAfterHeadingPagebreak([{ type: 'heading' }, { type: 'blank' }, { type: 'paragraph' }], true)),
+    types(dropBlankAroundBreaks([{ type: 'heading' }, { type: 'blank' }, { type: 'paragraph' }], true)),
     ['heading', 'paragraph']);
-  // only the FIRST blank is dropped; a second survives
+  // only the FIRST blank after a heading is dropped; a second survives
   assert.deepEqual(
-    types(dropBlankAfterHeadingPagebreak([{ type: 'heading' }, { type: 'blank' }, { type: 'blank' }, { type: 'paragraph' }], true)),
+    types(dropBlankAroundBreaks([{ type: 'heading' }, { type: 'blank' }, { type: 'blank' }, { type: 'paragraph' }], true)),
     ['heading', 'blank', 'paragraph']);
   // disabled → blank after a heading is kept
   assert.deepEqual(
-    types(dropBlankAfterHeadingPagebreak([{ type: 'heading' }, { type: 'blank' }, { type: 'paragraph' }], false)),
+    types(dropBlankAroundBreaks([{ type: 'heading' }, { type: 'blank' }, { type: 'paragraph' }], false)),
     ['heading', 'blank', 'paragraph']);
-  // a blank after a pagebreak is always dropped, regardless of the heading toggle
+  // a blank after a pagebreak is always dropped
   assert.deepEqual(
-    types(dropBlankAfterHeadingPagebreak([{ type: 'pagebreak' }, { type: 'blank' }, { type: 'paragraph' }], false)),
+    types(dropBlankAroundBreaks([{ type: 'pagebreak' }, { type: 'blank' }, { type: 'paragraph' }], false)),
     ['pagebreak', 'paragraph']);
+  // a blank BEFORE a pagebreak is also always dropped
+  assert.deepEqual(
+    types(dropBlankAroundBreaks([{ type: 'paragraph' }, { type: 'blank' }, { type: 'pagebreak' }, { type: 'paragraph' }], false)),
+    ['paragraph', 'pagebreak', 'paragraph']);
+  // both before and after: blanks on each side are dropped
+  assert.deepEqual(
+    types(dropBlankAroundBreaks([{ type: 'paragraph' }, { type: 'blank' }, { type: 'pagebreak' }, { type: 'blank' }, { type: 'paragraph' }], true)),
+    ['paragraph', 'pagebreak', 'paragraph']);
+  // only the FIRST blank before a pagebreak is dropped; two shrink to one
+  assert.deepEqual(
+    types(dropBlankAroundBreaks([{ type: 'paragraph' }, { type: 'blank' }, { type: 'blank' }, { type: 'pagebreak' }], true)),
+    ['paragraph', 'blank', 'pagebreak']);
+  // heading toggle doesn't protect blanks before a pagebreak
+  assert.deepEqual(
+    types(dropBlankAroundBreaks([{ type: 'heading' }, { type: 'blank' }, { type: 'pagebreak' }], false)),
+    ['heading', 'pagebreak']);
   // a blank between two paragraphs is untouched
   assert.deepEqual(
-    types(dropBlankAfterHeadingPagebreak([{ type: 'paragraph' }, { type: 'blank' }, { type: 'paragraph' }], true)),
+    types(dropBlankAroundBreaks([{ type: 'paragraph' }, { type: 'blank' }, { type: 'paragraph' }], true)),
     ['paragraph', 'blank', 'paragraph']);
 });
 
@@ -104,7 +120,7 @@ test('convert: blank line right after a heading is dropped by default', async ()
 test('convert: body paragraphs get 1.5 line spacing by default', async () => {
   const xml = await documentXml((await convert('para text')).buffer);
   const para = xml.match(/<w:p>(?:(?!<\/w:p>).)*para text(?:(?!<\/w:p>).)*<\/w:p>/s);
-  assert.ok(para && /<w:spacing[^>]*w:line="360"[^>]*w:lineRule="auto"/.test(para[0]));
+  assert.ok(para && /<w:spacing[^>]*w:line="300"[^>]*w:lineRule="auto"/.test(para[0]));
 });
 
 test('convert: code and tables stay tight (single line spacing)', async () => {

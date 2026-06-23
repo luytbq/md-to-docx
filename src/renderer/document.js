@@ -106,16 +106,22 @@ function runningParagraph(zones, cfg, CW, vars) {
 }
 
 // Drop exactly the FIRST blank block immediately following a heading (gated by
-// skipHeading) or a pagebreak (always). The second+ consecutive blank is kept, so an
-// author who deliberately adds vertical space still gets it.
-export function dropBlankAfterHeadingPagebreak(blocks, skipHeading) {
+// skipHeading) or a pagebreak (always), AND the FIRST blank block immediately
+// BEFORE a pagebreak (always). The second+ consecutive blank is kept in each
+// direction, so an author who deliberately adds vertical space still gets it.
+export function dropBlankAroundBreaks(blocks, skipHeading) {
   const out = [];
   let prevType = null;
   for (const b of blocks) {
+    // drop 1 blank AFTER heading (gated) or pagebreak (always)
     if (b.type === 'blank' &&
         ((prevType === 'heading' && skipHeading) || prevType === 'pagebreak')) {
       prevType = 'blank';   // mark as consumed → the next blank survives
       continue;
+    }
+    // drop 1 blank BEFORE pagebreak (always)
+    if (b.type === 'pagebreak' && out.length && out[out.length - 1].type === 'blank') {
+      out.pop();
     }
     out.push(b);
     prevType = b.type;
@@ -125,7 +131,7 @@ export function dropBlankAfterHeadingPagebreak(blocks, skipHeading) {
 
 export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = false, splitTall = false, header = null, footer = null, vars = {} } = {}) {
   const warnings = [];
-  blocks = dropBlankAfterHeadingPagebreak(blocks, cfg.heading.skipBlankAfter);
+  blocks = dropBlankAroundBreaks(blocks, cfg.heading.skipBlankAfter);
   const PAGE = PAGE_SIZES[cfg.page.size] ?? PAGE_SIZES.A4;
   const mg = typeof cfg.page.margin === 'object' ? cfg.page.margin
     : { top: cfg.page.margin, right: cfg.page.margin, bottom: cfg.page.margin, left: cfg.page.margin };
