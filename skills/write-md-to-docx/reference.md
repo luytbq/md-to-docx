@@ -162,6 +162,21 @@ A right-aligned, red note
   links, and `@style` ([§3.3](#33-style--inline-run-styling)). Escape a literal
   pipe as `\|`.
 - Column widths are auto‑sized from content.
+- **Per‑table options** — an `<!-- @table … -->` comment on the line(s) right
+  above a table (only blank lines may sit in between) applies to that table
+  only. `header=false` (or the bare flag `no_header`) renders the first row as
+  a regular body row — no bold, no header fill, per‑column alignment applies —
+  for tables that are really key/value listings:
+
+  ```markdown
+  <!-- @table header=false -->
+  | Field  | Value |
+  |--------|-------|
+  | Status | OK    |
+  ```
+
+  Unknown options (or a `header` value other than true/false) emit a `table`
+  warning and are ignored.
 
 ### 2.7 Code blocks
 
@@ -295,6 +310,7 @@ Directive summary:
 | `@style … /style` | inline, paired, or self‑close `/-->` | style a text run (or align a paragraph) | [3.3](#33-style--inline-run-styling) |
 | `@header` / `@footer` | inline or block | running header / footer | [3.4](#34-header--footer--running-header--footer) |
 | `@pagebreak` | inline | page break | [3.5](#35-pagebreak) |
+| `@table` | inline | per-table options (e.g. `header=false`) | [2.6](#26-tables) |
 
 Variable references (`{doc.title}`, `{vars.x}`, `{date}`, …) work anywhere — see
 [§3.6](#36-variables).

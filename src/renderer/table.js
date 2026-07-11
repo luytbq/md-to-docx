@@ -49,14 +49,35 @@ export function columnWidths(block, CW, { cap = 45, min = 800 } = {}) {
   return widths;
 }
 
+// Per-table options from a `<!-- @table … -->` directive. `header=false` (or the bare
+// `no_header` flag) renders the first row as a body row instead of a styled header.
+function tableOpts(block, ctx) {
+  const opts = block.opts ?? {};
+  let noHeader = false;
+  for (const [key, val] of Object.entries(opts)) {
+    if (key === 'header' || key === 'no_header') {
+      const off = key === 'no_header' ? val === true : /^(false|no|0)$/i.test(String(val));
+      if (off) noHeader = true;
+      else if (key === 'header' && !/^(true|yes|1)$/i.test(String(val)))
+        ctx.warnings?.push({ type: 'table', message: `invalid @table value "${key}=${val}" (expected true/false)` });
+    } else {
+      ctx.warnings?.push({ type: 'table', message: `unknown @table option "${key}"` });
+    }
+  }
+  return { noHeader };
+}
+
 export function mdTable(block, cfg, CW, ctx = {}, pageBreakBefore = false) {
   const cols = block.headers.length;
   const widths = columnWidths(block, CW);
   const fontSize = Math.max(8, cfg.table.rowSize - Math.floor(Math.max(0, cols - 3) / 2));
   const BORDERS = borders(cfg);
+  const { noHeader } = tableOpts(block, ctx);
+  const bodyRows = noHeader ? [block.headers, ...block.rows] : block.rows;
+  const bodyRow = (row, ri, pb) => new TableRow({ children: row.map((c, i) => tcell(c, { width: widths[i], fill: ri % 2 === 0 ? cfg.table.oddFill : cfg.table.evenFill, color: cfg.table.rowColor, size: fontSize, borders: BORDERS, align: block.align[i] || 'left', pageBreakBefore: pb && i === 0 }, cfg, ctx)) });
   const rows = [
-    new TableRow({ children: block.headers.map((h, i) => tcell(h, { width: widths[i], bold: cfg.table.headerBold, color: cfg.table.headerColor, fill: cfg.table.headerFill, size: cfg.table.headerSize, borders: BORDERS, align: 'center', pageBreakBefore: pageBreakBefore && i === 0 }, cfg, ctx)) }),
-    ...block.rows.map((row, ri) => new TableRow({ children: row.map((c, i) => tcell(c, { width: widths[i], fill: ri % 2 === 0 ? cfg.table.oddFill : cfg.table.evenFill, color: cfg.table.rowColor, size: fontSize, borders: BORDERS, align: block.align[i] || 'left' }, cfg, ctx)) })),
+    ...(noHeader ? [] : [new TableRow({ children: block.headers.map((h, i) => tcell(h, { width: widths[i], bold: cfg.table.headerBold, color: cfg.table.headerColor, fill: cfg.table.headerFill, size: cfg.table.headerSize, borders: BORDERS, align: 'center', pageBreakBefore: pageBreakBefore && i === 0 }, cfg, ctx)) })]),
+    ...bodyRows.map((row, ri) => bodyRow(row, ri, pageBreakBefore && noHeader && ri === 0)),
   ];
   return new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: widths, rows });
 }

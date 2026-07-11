@@ -11,6 +11,9 @@ export function parseMarkdown(md) {
   // Tracks the active bullet list's indentation to derive nesting levels.
   // Any structural block (code/table/heading/hr/image) resets it, ending the list context.
   const listIndent = createIndentTracker();
+  // Options from a `<!-- @table … -->` directive, waiting for the table that follows.
+  // Blank lines may sit between the directive and its table; any other block orphans it.
+  let pendingTable = null;
   let i = 0;
 
   while (i < lines.length) {
@@ -28,6 +31,7 @@ export function parseMarkdown(md) {
       const { inner, next } = readComment(lines, i);
       const dir = parseDirective(inner);
       if (dir && dir.name === 'pagebreak') { listIndent.reset(); blocks.push({ type: 'pagebreak' }); }
+      if (dir && dir.name === 'table') pendingTable = { opts: parseArgs(dir.argStr), at: blocks.length };
       i = next; continue;
     }
     // Self-close `<!-- @style … /-->` alone on its own line → styles the NEXT line (lets you keep
@@ -75,6 +79,10 @@ export function parseMarkdown(md) {
     if (isTableStart(lines, i)) {
       listIndent.reset();
       const { block, next } = parseTable(lines, i);
+      // A pending `@table` directive applies only if nothing but blank lines sit between it
+      // and this table — an orphaned directive must not style a table further down.
+      if (pendingTable && blocks.slice(pendingTable.at).every(b => b.type === 'blank')) block.opts = pendingTable.opts;
+      pendingTable = null;
       blocks.push(block); i = next; continue;
     }
     if (/^\s*>/.test(line)) {

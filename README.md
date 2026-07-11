@@ -12,7 +12,8 @@ directives. No build step, no global tools.
   Chromium), font‑size normalized, with optional page slicing for tall diagrams.
 - **Directive system** (`<!-- @… -->`) for everything else: `@config` for
   document styling, `@style` for inline run styling, `@header`/`@footer` for
-  running headers/footers, `@pagebreak` for page breaks.
+  running headers/footers, `@pagebreak` for page breaks, `@table` for
+  per-table options (e.g. `header=false` for headerless tables).
 - **Variables** — declare metadata/custom values (`@doc`, `vars:`) and reference
   them as `{doc.title}`, `{vars.version}`, `{page}`, `{date}` anywhere in the document.
 - **CLI and programmatic API**, both returning structured warnings.
@@ -96,7 +97,7 @@ in `warnings`.
 
 - **[Syntax & Configuration Reference](skills/write-md-to-docx/reference.md)** — the full Markdown
   subset, the directive system (`@config`, `@style`, `@header`/`@footer`,
-  `@pagebreak`), the variable system, and every configuration key with its
+  `@pagebreak`, `@table`), the variable system, and every configuration key with its
   default and unit.
 
 ## Authoring with an AI agent

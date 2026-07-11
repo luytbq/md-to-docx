@@ -2,7 +2,7 @@
 name: write-md-to-docx
 description: >-
   Use when authoring or editing Markdown that will be converted to .docx with the md-to-docx
-  tool. Covers its directive system (@config / @doc / @header / @footer / @pagebreak), inline
+  tool. Covers its directive system (@config / @doc / @header / @footer / @pagebreak / @table), inline
   & block @style, {doc.*}/{vars.*}/{date} variables, internal #slug links, heading numbering,
   tables, and mermaid. Write to this dialect — not plain Markdown — and verify by running the
   converter and reading its warnings.
@@ -58,6 +58,11 @@ and `space_after` (pt). `heading.line_spacing` is shared by all levels unless a 
 | `@header` / `@footer` | Running header/footer, 3 zones | `<!-- @footer center="Page {page} of {pages}" skip_on_first_page=true -->` |
 | `@pagebreak` | Hard page break | `<!-- @pagebreak -->` |
 | `@style` | Inline / block run styling | see below |
+| `@table` | Options for the next table | `<!-- @table header=false -->` |
+
+`@table` on the line above a table (blank lines in between are OK; any other block orphans it)
+styles that table only. `header=false` (or bare `no_header`) renders the first row as a regular
+body row — no bold/header fill — for key/value-style tables. Unknown options emit a `table` warning.
 
 Header/footer args: `left=`, `center=`, `right=` (quote values with spaces), plus `size`, `color`,
 `font`, `border_top`/`border_bottom`, `skip_on_first_page` (bool, or an int N to leave the
@@ -132,6 +137,7 @@ Read the printed warnings and fix the source until clean:
 | `var` | A `{ref}` didn't resolve — left literal | Fix the typo, or declare it in `@doc`/`vars:` |
 | `link` | `[t](#slug)` matched no heading | Correct the slug to the target heading's GitHub slug |
 | `style` | Bad `@style` value (color/size) | Use a valid named/hex color or numeric size |
+| `table` | Unknown/invalid `@table` option | Use a supported option (`header=false` / `no_header`) |
 | `mermaid` | Diagram didn't render | Fix mermaid syntax; quote special-char labels |
 | `image` | Image unreadable/missing | Fix the path (relative to the doc / `baseDir`) |
 | `heading-numbering` | Level skip or bad `from`/`to` range | Don't skip heading levels inside the numbered range |
