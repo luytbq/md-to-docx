@@ -30,6 +30,7 @@ subset it understands, the HTML‑comment **directive** system, and every
   - [3.4 `@header` / `@footer` — running header & footer](#34-header--footer--running-header--footer)
   - [3.5 `@pagebreak`](#35-pagebreak)
   - [3.6 Variables](#36-variables)
+  - [3.7 `@toc` — table of contents](#37-toc--table-of-contents)
 - [4. Configuration reference](#4-configuration-reference)
   - [4.1 Loading & precedence](#41-loading--precedence)
   - [4.2 Units & value formats](#42-units--value-formats)
@@ -310,6 +311,7 @@ Directive summary:
 | `@style … /style` | inline, paired, or self‑close `/-->` | style a text run (or align a paragraph) | [3.3](#33-style--inline-run-styling) |
 | `@header` / `@footer` | inline or block | running header / footer | [3.4](#34-header--footer--running-header--footer) |
 | `@pagebreak` | inline | page break | [3.5](#35-pagebreak) |
+| `@toc` | inline | native Word table of contents | [3.7](#37-toc--table-of-contents) |
 | `@table` | inline | per-table options (e.g. `header=false`) | [2.6](#26-tables) |
 
 Variable references (`{doc.title}`, `{vars.x}`, `{date}`, …) work anywhere — see
@@ -540,6 +542,42 @@ Version {vars.version}, prepared by {doc.author} on {date}.
   code blocks — code is verbatim.
 
 ---
+
+### 3.7 `@toc` — table of contents
+
+Inserts a **native Word TOC field** at the directive's position — entries are
+collected from the built‑in heading styles, numbered exactly as the headings are,
+and each entry jumps to its heading on click.
+
+```markdown
+<!-- @style align=center size=16 bold /-->
+MỤC LỤC
+
+<!-- @toc -->
+
+<!-- @pagebreak -->
+```
+
+**Options:**
+
+| Key | Type | Default | Description |
+|:----|:-----|:--------|:------------|
+| `levels` | `N` or `N-M` (1–6) | `1-3` | heading levels included; a single `N` means `1-N` |
+| `hyperlink` | bool | `true` | make entries clickable links to their headings |
+
+Unknown options or invalid values emit a `toc` warning and fall back to the default.
+
+**Notes:**
+
+- Write the TOC title yourself (e.g. with a self‑close `@style` line as above). Do
+  **not** use a `#` heading for it — a heading within `levels` would list itself
+  in the TOC.
+- The converter cannot compute page numbers, so the TOC ships as a *dirty field*:
+  **Word prompts "update fields?" on open — choose Yes** and the TOC populates.
+  In LibreOffice use *Tools → Update → Update All*. This is inherent to native
+  TOC fields, not an error.
+- TOC entries render with `TOC1..6` styles that follow `body.font`/`body.size`,
+  indented per level.
 
 ## 4. Configuration reference
 

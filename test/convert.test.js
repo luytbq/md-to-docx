@@ -194,6 +194,53 @@ test('convert: unresolved internal link records a link warning', async () => {
   assert.equal(warnings.filter(w => w.type === 'link').length, 1);
 });
 
+const TOC_DOC = '# One\n\n## Two\n\nbody text';
+
+async function settingsXml(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  return zip.file('word/settings.xml').async('string');
+}
+
+test('convert: @toc emits a native TOC field with defaults (\\o "1-3" \\h)', async () => {
+  const { buffer, warnings } = await convert(`<!-- @toc -->\n\n${TOC_DOC}`);
+  const xml = await documentXml(buffer);
+  assert.ok(/TOC[^<]*\\o[^<]*&quot;1-3&quot;/.test(xml), 'TOC field with \\o "1-3"');
+  assert.ok(/TOC[^<]*\\h/.test(xml), 'hyperlink switch on by default');
+  // Word is told to refresh fields (and thus populate the TOC) on open
+  assert.ok(/<w:updateFields/.test(await settingsXml(buffer)));
+  assert.equal(warnings.filter(w => w.type === 'toc').length, 0);
+});
+
+test('convert: @toc levels and hyperlink options control the field switches', async () => {
+  const two = await documentXml((await convert(`<!-- @toc levels=2 -->\n\n${TOC_DOC}`)).buffer);
+  assert.ok(/TOC[^<]*\\o[^<]*&quot;1-2&quot;/.test(two), 'levels=2 means 1-2');
+  const range = await documentXml((await convert(`<!-- @toc levels=2-4 -->\n\n${TOC_DOC}`)).buffer);
+  assert.ok(/TOC[^<]*\\o[^<]*&quot;2-4&quot;/.test(range));
+  const plain = await documentXml((await convert(`<!-- @toc hyperlink=false -->\n\n${TOC_DOC}`)).buffer);
+  assert.equal(/TOC[^<]*\\h/.test(plain), false, 'hyperlink=false drops \\h');
+});
+
+test('convert: no @toc → no updateFields prompt', async () => {
+  const settings = await settingsXml((await convert(TOC_DOC)).buffer);
+  assert.equal(/<w:updateFields/.test(settings), false);
+});
+
+test('convert: @toc unknown/invalid options warn', async () => {
+  const { warnings } = await convert(`<!-- @toc foo=1 levels=9 -->\n\n${TOC_DOC}`);
+  const w = warnings.filter(w => w.type === 'toc');
+  assert.equal(w.length, 2);
+  assert.match(w.map(x => x.message).join('; '), /unknown @toc option "foo"/);
+  assert.match(w.map(x => x.message).join('; '), /levels=9/);
+});
+
+test('convert: @pagebreak before @toc still lands a page break', async () => {
+  const { buffer } = await convert(`title page\n\n<!-- @pagebreak -->\n\n<!-- @toc -->\n\n${TOC_DOC}`);
+  const xml = await documentXml(buffer);
+  assert.ok(/<w:pageBreakBefore\b/.test(xml));
+  // the break paragraph sits before the TOC structured document tag
+  assert.ok(xml.indexOf('pageBreakBefore') < xml.indexOf('Table of Contents'));
+});
+
 const HN = body => `<!-- @config\nheading:\n  numbering:\n    enabled: true\n${body}-->\n`;
 
 test('convert: heading numbering off by default → no numbering warnings on a skip', async () => {

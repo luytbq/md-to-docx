@@ -31,6 +31,7 @@ export function parseMarkdown(md) {
       const { inner, next } = readComment(lines, i);
       const dir = parseDirective(inner);
       if (dir && dir.name === 'pagebreak') { listIndent.reset(); blocks.push({ type: 'pagebreak' }); }
+      if (dir && dir.name === 'toc') { listIndent.reset(); blocks.push({ type: 'toc', opts: parseArgs(dir.argStr) }); }
       if (dir && dir.name === 'table') pendingTable = { opts: parseArgs(dir.argStr), at: blocks.length };
       i = next; continue;
     }

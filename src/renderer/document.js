@@ -1,6 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Bookmark,
          AlignmentType, BorderStyle, ShadingType, LevelFormat, LevelSuffix, Header, Footer, PageNumber,
-         Tab, TabStopType, SectionType } from 'docx';
+         Tab, TabStopType, SectionType, TableOfContents } from 'docx';
 import { makeRuns } from '../parser/inline.js';
 import { slugify } from '../parser/slug.js';
 import { mdTable } from './table.js';
@@ -13,6 +13,29 @@ const HL = [null, HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.H
             HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6];
 
 const PAGE_SIZES = { A4: [11906, 16838], Letter: [12240, 15840] };
+
+// Options from a `<!-- @toc … -->` directive. `levels` is a heading-style range for the
+// field's \o switch ("1-3", or a single number N meaning "1-N"); `hyperlink` (default on)
+// makes each entry click-to-jump. Anything else warns and is ignored.
+function tocOpts(block, warnings) {
+  const opts = block.opts ?? {};
+  let levels = '1-3';
+  let hyperlink = true;
+  for (const [key, val] of Object.entries(opts)) {
+    if (key === 'levels') {
+      const m = String(val).match(/^([1-6])(?:-([1-6]))?$/);
+      if (m && (!m[2] || Number(m[1]) <= Number(m[2]))) levels = m[2] ? `${m[1]}-${m[2]}` : `1-${m[1]}`;
+      else warnings.push({ type: 'toc', message: `invalid @toc value "levels=${val}" (expected N or N-M within 1-6)` });
+    } else if (key === 'hyperlink') {
+      if (/^(false|no|0)$/i.test(String(val))) hyperlink = false;
+      else if (!/^(true|yes|1)$/i.test(String(val)))
+        warnings.push({ type: 'toc', message: `invalid @toc value "hyperlink=${val}" (expected true/false)` });
+    } else {
+      warnings.push({ type: 'toc', message: `unknown @toc option "${key}"` });
+    }
+  }
+  return { levels, hyperlink };
+}
 
 // Map an align string (center/right/left/justify) to a docx AlignmentType; undefined = inherit (left).
 const alignType = a => a === 'center' ? AlignmentType.CENTER
@@ -141,6 +164,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
   const children = [];
   let hasMermaid = false;
   let hasTallMermaid = false;
+  let hasToc = false;
 
   // Pre-pass: assign a bookmark id to each heading, map slug → id (GitHub-style dedupe: -1, -2…).
   // ctx carries the anchorMap (for resolving `[text](#heading)` links) and the warnings sink to makeRuns.
@@ -276,6 +300,14 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
     } else if (b.type === 'table') {
       children.push(mdTable(b, cfg, CW, ctx, b.pageBreakBefore), blank(cfg));
 
+    } else if (b.type === 'toc') {
+      hasToc = true;
+      const { levels, hyperlink } = tocOpts(b, warnings);
+      // A TableOfContents is not a Paragraph, so it can't carry pageBreakBefore itself —
+      // a collapsed @pagebreak lands on an empty paragraph pushed just before it.
+      if (b.pageBreakBefore) children.push(new Paragraph({ children: [], pageBreakBefore: true }));
+      children.push(new TableOfContents('Table of Contents', { hyperlink, headingStyleRange: levels }));
+
     } else if (b.type === 'hr') {
       children.push(new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: cfg.table.border } }, spacing: { before: 120, after: 120 }, children: [new TextRun('')], pageBreakBefore: b.pageBreakBefore }));
 
@@ -288,6 +320,15 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
     id: `Heading${i + 1}`, name: `Heading ${i + 1}`, basedOn: 'Normal', next: 'Normal', quickFormat: true,
     run: { font: cfg.heading.font, size: h.size * 2, bold: h.bold, italics: h.italic, color: h.color },
     paragraph: { spacing: h.spacing, outlineLevel: i },
+  }));
+
+  // Word renders TOC entries with its built-in TOC1..9 styles (theme font — mismatched
+  // with the document body). Override the levels we can emit so entries follow the body
+  // font/size, with a growing left indent per level and tight line spacing.
+  const tocStyles = !hasToc ? [] : Array.from({ length: 6 }, (_, i) => ({
+    id: `TOC${i + 1}`, name: `toc ${i + 1}`, basedOn: 'Normal', next: 'Normal',
+    run: { font: cfg.body.font, size: cfg.body.size * 2, color: cfg.body.color },
+    paragraph: { spacing: { line: 240, lineRule: 'auto', before: 40, after: 40 }, indent: { left: 200 * i } },
   }));
 
   const bullets = Array.isArray(cfg.list.bullets) ? cfg.list.bullets : ['•', '◦', '▪'];
@@ -333,6 +374,10 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
   }
 
   const doc = new Document({
+    // The library can't compute page numbers, so a TOC ships as a dirty field;
+    // updateFields makes Word offer to populate it on open. Only set when a TOC
+    // exists, so ordinary documents don't trigger the prompt.
+    ...(hasToc ? { features: { updateFields: true } } : {}),
     numbering: {
       config: [
         {
@@ -356,6 +401,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       default: { document: { run: { font: cfg.body.font, size: cfg.body.size * 2, color: cfg.body.color }, paragraph: { spacing: { line: cfg.body.spacing.line, lineRule: cfg.body.spacing.lineRule } } } },
       paragraphStyles: [
         ...headingStyles,
+        ...tocStyles,
         {
           id: 'CodeBlock', name: 'Code Block', basedOn: 'Normal', next: 'Normal',
           run: { font: cfg.code.font, size: cfg.code.size * 2, color: cfg.code.color },
