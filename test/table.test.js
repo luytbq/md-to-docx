@@ -43,6 +43,19 @@ test('columnWidths: a short-content column is narrower than a long-content colum
   assert.ok(value >= 800);
 });
 
+test('columnWidths: a link cell is sized by its label, not its URL', () => {
+  // The Link column holds a 3-char label wrapping a ~55-char URL; the URL is not
+  // rendered, so it must not inflate the column past the longer plain "Detail" text.
+  const md = [
+    '| Link | Detail |',
+    '|------|--------|',
+    '| [doc](https://example.com/a/very/long/path/that/should/not/count) | a longer sentence of detail here |',
+  ].join('\n');
+  const b = tableBlock(md);
+  const [link, detail] = columnWidths(b, CW);
+  assert.ok(link < detail, `Link (${link}) should be < Detail (${detail}) — URL must not count`);
+});
+
 test('columnWidths: header length still drives width when body is empty/short', () => {
   const b = tableBlock('| Name | X |\n|---|---|\n| a | b |');
   const [name, x] = columnWidths(b, CW);

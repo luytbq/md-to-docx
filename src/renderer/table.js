@@ -36,7 +36,13 @@ export function tcell(text, { width, bold = false, italic = false, color, fill, 
  * CW is then split proportionally with a per-column minimum, leftover going to the widest.
  */
 export function columnWidths(block, CW, { cap = 45, min = 800 } = {}) {
-  const plainLen = s => s.replace(/[*_`]/g, '').length;
+  // Measure the *rendered* width: link markdown collapses to its label (the URL never
+  // appears as text — inline.js emits a hyperlink whose visible run is only the label),
+  // then emphasis markers are dropped. Links first so `[**x**](url)` measures as `x`.
+  const plainLen = s => s
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_`]/g, '')
+    .length;
   const weights = block.headers.map((h, i) => {
     let m = plainLen(h);
     for (const row of block.rows) m = Math.max(m, plainLen(row[i] ?? ''));
