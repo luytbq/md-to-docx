@@ -287,7 +287,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
     } else if (b.type === 'codeblock') {
       if (b.lang === 'mermaid') {
         hasMermaid = true;
-        const { paras, tall } = mermaidBlockParagraphs(b.code, cfg, { CW, PAGE, MG }, splitTall, keepMermaidText, warnings, b.pageBreakBefore);
+        const { paras, tall } = mermaidBlockParagraphs(b.code, cfg, { CW, PAGE, MG }, splitTall, keepMermaidText, warnings, b.pageBreakBefore, b.opts);
         if (tall) hasTallMermaid = true;
         children.push(...paras, blank(cfg));
       } else {

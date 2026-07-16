@@ -210,6 +210,26 @@ diagram taller than one page is shrunk to fit (down to `mermaid.min_font_pt`); t
 instead. If rendering is unavailable, the block falls back to a plain code block
 and a `mermaid` warning is emitted. Tuning keys: [`mermaid`](#mermaid).
 
+**Per‑diagram size** — an `<!-- @mermaid … -->` comment on the line(s) right
+before a mermaid block sets its size in pixels, overriding the automatic
+font‑scaling and content‑width cap. Blank lines between the directive and the
+block are allowed; anything else orphans it.
+
+````markdown
+<!-- @mermaid width=400 -->
+```mermaid
+graph LR
+  A --> B --> C
+```
+````
+
+- `width=…` and/or `height=…`, in px. Give one and the other scales to preserve
+  the aspect ratio; give both for an exact (possibly distorted) size.
+- A forced diagram still taller than one page is shrunk to fit the page height, so
+  layout never breaks. Width is not capped, so a large forced size (or a `height`
+  on a very wide diagram) can overflow the content width.
+- Unknown options and non‑integer values are ignored with a `mermaid` warning.
+
 ### 2.9 Images
 
 ```markdown
@@ -313,6 +333,7 @@ Directive summary:
 | `@pagebreak` | inline | page break | [3.5](#35-pagebreak) |
 | `@toc` | inline | native Word table of contents | [3.7](#37-toc--table-of-contents) |
 | `@table` | inline | per-table options (e.g. `header=false`) | [2.6](#26-tables) |
+| `@mermaid` | inline | per-diagram size in px (e.g. `width=400`) | [2.8](#28-mermaid-diagrams) |
 
 Variable references (`{doc.title}`, `{vars.x}`, `{date}`, …) work anywhere — see
 [§3.6](#36-variables).

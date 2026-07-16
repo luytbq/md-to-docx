@@ -2,6 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PNG } from 'pngjs';
 import { sliceTall, pngDims, trimWhitespace } from '../src/mermaid.js';
+import { forcedDims, mermaidOpts } from '../src/renderer/mermaid.js';
+import { parseMarkdown } from '../src/parser/markdown.js';
+
+const MMD = '```mermaid\ngraph LR\nA-->B\n```';
+const mermaidBlock = md => parseMarkdown(md).find(b => b.type === 'codeblock' && b.lang === 'mermaid');
 
 function makePng(w, h) {
   const png = new PNG({ width: w, height: h });
@@ -77,4 +82,45 @@ test('trimWhitespace: returns null on an all-white image and on a bad buffer', (
   const white = makeBordered(50, 50, 25);   // inset 25 on a 50px canvas → no content pixels
   assert.equal(trimWhitespace(white), null);
   assert.equal(trimWhitespace(Buffer.from('not a png')), null);
+});
+
+test('@mermaid directive: opts attach to the mermaid block that follows', () => {
+  const b = mermaidBlock(`<!-- @mermaid width=400 height=300 -->\n${MMD}`);
+  assert.deepEqual(b.opts, { width: '400', height: '300' });
+});
+
+test('@mermaid directive: blank lines between directive and block are allowed', () => {
+  const b = mermaidBlock(`<!-- @mermaid width=400 -->\n\n\n${MMD}`);
+  assert.equal(b.opts.width, '400');
+});
+
+test('@mermaid directive: any other block in between orphans the directive', () => {
+  const b = mermaidBlock(`<!-- @mermaid width=400 -->\n\nsome paragraph\n\n${MMD}`);
+  assert.equal(b.opts, undefined);
+});
+
+test('forcedDims: both dims are used exactly', () => {
+  assert.deepEqual(forcedDims(200, 100, 400, 300), { w: 400, h: 300 });
+});
+
+test('forcedDims: width-only preserves aspect ratio', () => {
+  assert.deepEqual(forcedDims(200, 100, 400, null), { w: 400, h: 200 });
+});
+
+test('forcedDims: height-only preserves aspect ratio', () => {
+  assert.deepEqual(forcedDims(200, 100, null, 400), { w: 800, h: 400 });
+});
+
+test('mermaidOpts: parses width/height as px ints', () => {
+  const warnings = [];
+  assert.deepEqual(mermaidOpts({ width: '400', height: '300' }, warnings), { forceW: 400, forceH: 300 });
+  assert.equal(warnings.length, 0);
+});
+
+test('mermaidOpts: warns on an unknown option and a non-integer value', () => {
+  const warnings = [];
+  const { forceW, forceH } = mermaidOpts({ width: 'big', depth: '3' }, warnings);
+  assert.equal(forceW, null);
+  assert.equal(forceH, null);
+  assert.equal(warnings.filter(w => w.type === 'mermaid').length, 2);
 });

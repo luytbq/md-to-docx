@@ -14,6 +14,8 @@ export function parseMarkdown(md) {
   // Options from a `<!-- @table … -->` directive, waiting for the table that follows.
   // Blank lines may sit between the directive and its table; any other block orphans it.
   let pendingTable = null;
+  // Same mechanism for a `<!-- @mermaid … -->` directive, waiting for the mermaid fence.
+  let pendingMermaid = null;
   let i = 0;
 
   while (i < lines.length) {
@@ -33,6 +35,7 @@ export function parseMarkdown(md) {
       if (dir && dir.name === 'pagebreak') { listIndent.reset(); blocks.push({ type: 'pagebreak' }); }
       if (dir && dir.name === 'toc') { listIndent.reset(); blocks.push({ type: 'toc', opts: parseArgs(dir.argStr) }); }
       if (dir && dir.name === 'table') pendingTable = { opts: parseArgs(dir.argStr), at: blocks.length };
+      if (dir && dir.name === 'mermaid') pendingMermaid = { opts: parseArgs(dir.argStr), at: blocks.length };
       i = next; continue;
     }
     // Self-close `<!-- @style … /-->` alone on its own line → styles the NEXT line (lets you keep
@@ -75,6 +78,10 @@ export function parseMarkdown(md) {
     if (/^```/.test(line)) {
       listIndent.reset();
       const { block, next } = parseFence(lines, i);
+      // A pending `@mermaid` directive applies only to the next mermaid fence, and only
+      // if nothing but blank lines sit between it and the fence (same orphan rule as @table).
+      if (block.lang === 'mermaid' && pendingMermaid && blocks.slice(pendingMermaid.at).every(b => b.type === 'blank')) block.opts = pendingMermaid.opts;
+      pendingMermaid = null;
       blocks.push(block); i = next; continue;
     }
     if (isTableStart(lines, i)) {

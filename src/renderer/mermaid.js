@@ -14,7 +14,7 @@ import { codeBlock, mermaidCodeBlock } from './code.js';
  *   - paras: the rendered image paragraph(s), or a fallback code block on render failure
  *   - tall:  true if the diagram exceeds one page even at the min-font floor
  */
-export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, keepMermaidText, warnings, pageBreakBefore = false) {
+export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, keepMermaidText, warnings, pageBreakBefore = false, opts = {}) {
   const result = renderMermaid(code, cfg.mermaid.renderScale);
   if (!result.buffer) {
     if (result.warning) warnings.push({ type: 'mermaid', message: result.warning });
@@ -28,20 +28,29 @@ export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, k
   const trimmed = cfg.mermaid.trim ? trimWhitespace(result.buffer) : null;
   if (trimmed) imgBuf = trimmed.buf;
   const { w, h } = trimmed ? { w: trimmed.w, h: trimmed.h } : pngDims(result.buffer);
-  // Scale so diagram text shows at the target font size.
-  // Target = mermaid.font_size if set, else the document body size.
-  // PNG is rendered at renderScale×, base font baseFontPx px → font in PNG = baseFontPx*renderScale px.
-  const mermaidFontPt = cfg.mermaid.fontSize || cfg.body.size;
-  const MERMAID_SCALE = cfg.mermaid.renderScale;
-  const targetFontPx = mermaidFontPt * 96 / 72;
-  const fontScale = targetFontPx / (cfg.mermaid.baseFontPx * MERMAID_SCALE);
-  // Smallest display ratio allowed by the min-font floor (display font scales linearly with scale).
-  const sMin = fontScale * cfg.mermaid.minFontPt / mermaidFontPt;
-  let imgPxW = Math.round(w * fontScale);
-  let imgPxH = Math.round(h * fontScale);
-  // Do not exceed content width (CW/15 = content width in px @96dpi).
-  const maxW = Math.round(CW / 15);
-  if (imgPxW > maxW) { imgPxH = Math.round(imgPxH * maxW / imgPxW); imgPxW = maxW; }
+  let imgPxW, imgPxH, sMin;
+  const { forceW, forceH } = mermaidOpts(opts, warnings);
+  if (forceW || forceH) {
+    // Explicit size (px) from `<!-- @mermaid width=… height=… -->` overrides the auto
+    // font-scale + width-cap. sMin = 0 removes the font floor so the page-fit safety net
+    // below may still shrink a too-tall forced diagram to one page ("hard size, page-capped").
+    ({ w: imgPxW, h: imgPxH } = forcedDims(w, h, forceW, forceH));
+    sMin = 0;
+  } else {
+    // Scale so diagram text shows at the target font size.
+    // Target = mermaid.font_size if set, else the document body size.
+    // PNG is rendered at renderScale×, base font baseFontPx px → font in PNG = baseFontPx*renderScale px.
+    const mermaidFontPt = cfg.mermaid.fontSize || cfg.body.size;
+    const targetFontPx = mermaidFontPt * 96 / 72;
+    const fontScale = targetFontPx / (cfg.mermaid.baseFontPx * cfg.mermaid.renderScale);
+    // Smallest display ratio allowed by the min-font floor (display font scales linearly with scale).
+    sMin = fontScale * cfg.mermaid.minFontPt / mermaidFontPt;
+    imgPxW = Math.round(w * fontScale);
+    imgPxH = Math.round(h * fontScale);
+    // Do not exceed content width (CW/15 = content width in px @96dpi).
+    const maxW = Math.round(CW / 15);
+    if (imgPxW > maxW) { imgPxH = Math.round(imgPxH * maxW / imgPxW); imgPxW = maxW; }
+  }
   const maxH = Math.round((PAGE[1] - MG.top - MG.bottom) / 15);  // one page's content height (px)
 
   let bands = null;
@@ -75,4 +84,28 @@ export function mermaidBlockParagraphs(code, cfg, { CW, PAGE, MG }, splitTall, k
 
   if (keepMermaidText) paras.push(...mermaidCodeBlock(code, cfg));
   return { paras, tall };
+}
+
+// Read `width`/`height` (px) from a `<!-- @mermaid … -->` directive's parsed args.
+// Non-integer values and unknown keys are ignored with a `mermaid` warning.
+export function mermaidOpts(opts = {}, warnings = []) {
+  let forceW = null, forceH = null;
+  for (const [key, val] of Object.entries(opts)) {
+    if (key === 'width' || key === 'height') {
+      const n = parseInt(val, 10);
+      if (Number.isFinite(n) && n > 0) { if (key === 'width') forceW = n; else forceH = n; }
+      else warnings.push({ type: 'mermaid', message: `invalid @mermaid ${key}="${val}" (expected a positive integer, px)` });
+    } else {
+      warnings.push({ type: 'mermaid', message: `unknown @mermaid option "${key}"` });
+    }
+  }
+  return { forceW, forceH };
+}
+
+// Resolve display pixels from the source dims and an explicit width/height (px):
+// both given → exact; one given → the other scales to preserve aspect ratio.
+export function forcedDims(w, h, forceW, forceH) {
+  if (forceW && forceH) return { w: forceW, h: forceH };
+  if (forceW)           return { w: forceW, h: Math.round(forceW * h / w) };
+  return { w: Math.round(forceH * w / h), h: forceH };
 }

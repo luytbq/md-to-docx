@@ -2,7 +2,7 @@
 name: write-md-to-docx
 description: >-
   Use when authoring or editing Markdown that will be converted to .docx with the md-to-docx
-  tool. Covers its directive system (@config / @doc / @header / @footer / @pagebreak / @table / @toc), inline
+  tool. Covers its directive system (@config / @doc / @header / @footer / @pagebreak / @table / @mermaid / @toc), inline
   & block @style, {doc.*}/{vars.*}/{date} variables, internal #slug links, heading numbering,
   tables, and mermaid. Write to this dialect — not plain Markdown — and verify by running the
   converter and reading its warnings.
@@ -59,6 +59,7 @@ and `space_after` (pt). `heading.line_spacing` is shared by all levels unless a 
 | `@pagebreak` | Hard page break | `<!-- @pagebreak -->` |
 | `@style` | Inline / block run styling | see below |
 | `@table` | Options for the next table | `<!-- @table header=false -->` |
+| `@mermaid` | Size (px) for the next diagram | `<!-- @mermaid width=400 -->` |
 | `@toc` | Native Word table of contents | `<!-- @toc levels=1-3 -->` |
 
 `@table` on the line above a table (blank lines in between are OK; any other block orphans it)
@@ -125,6 +126,8 @@ Watch out — these differ from CommonMark:
 A ```` ```mermaid ```` fenced block renders to an image. Quote node labels containing special
 characters. If rendering fails (bad syntax, or `mmdc`/Chromium unavailable) it degrades to a code
 block and emits a `mermaid` warning. Pass `--split-tall-mermaid` for diagrams taller than a page.
+Put `<!-- @mermaid width=400 -->` (px; `width` and/or `height`) on the line above a block to force
+its size, overriding the auto font-scaling; one dimension keeps the aspect ratio.
 
 ## Validation loop — REQUIRED
 
