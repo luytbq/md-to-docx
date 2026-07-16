@@ -119,14 +119,19 @@ export function buildConfig(yamlRaw = '', overrides = {}) {
       ],
     },
     table: {
-      headerFill:  g('table.header.fill', ''),
+      // Header zone. `background` is an alias for `fill`.
+      headerFill:  g('table.header.background', g('table.header.fill', '')),
       headerColor: g('table.header.color', '1F272E'),
       headerBold:  g('table.header.bold', true),
       headerSize:  g('table.header.size', 10),
-      oddFill:     g('table.row.odd_fill', 'F0F4F8'),
-      evenFill:    g('table.row.even_fill', 'FFFFFF'),
-      rowColor:    g('table.row.color', '1F272E'),
-      rowSize:     g('table.row.size', 10),
+      // Body zone (`table.body`); legacy `table.row.*` keys are honored as fallbacks.
+      bodyFill:    g('table.body.background', g('table.body.fill', '')),
+      bodyBold:    g('table.body.bold', false),
+      bodyColor:   g('table.body.color', g('table.row.color', '1F272E')),
+      bodySize:    g('table.body.size', g('table.row.size', 10)),
+      // Optional zebra striping — no default tint (empty = no fill).
+      oddFill:     g('table.row.odd_fill', ''),
+      evenFill:    g('table.row.even_fill', ''),
       border:      g('table.border', 'C0C8D0'),
       borderSize:  g('table.border_size', 4),
       cellPad:     Math.round(g('table.cell_padding', 0.15) * 567),

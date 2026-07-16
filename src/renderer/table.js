@@ -16,7 +16,7 @@ function pad(cfg) {
 }
 
 export function tcell(text, { width, bold = false, italic = false, color, fill, size, borders: b, align = 'left', pageBreakBefore = false } = {}, cfg, ctx = {}) {
-  const rOpts = { bold, italics: italic, size: (size ?? cfg.table.rowSize) * 2, font: cfg.body.font };
+  const rOpts = { bold, italics: italic, size: (size ?? cfg.table.bodySize) * 2, font: cfg.body.font };
   if (color) rOpts.color = color;
   const cellOpts = {
     children: [new Paragraph({ alignment: atype(align), spacing: cfg.table.spacing, children: makeRuns(text, rOpts, cfg, ctx), pageBreakBefore })],
@@ -70,11 +70,13 @@ function tableOpts(block, ctx) {
 export function mdTable(block, cfg, CW, ctx = {}, pageBreakBefore = false) {
   const cols = block.headers.length;
   const widths = columnWidths(block, CW);
-  const fontSize = Math.max(8, cfg.table.rowSize - Math.floor(Math.max(0, cols - 3) / 2));
+  const fontSize = Math.max(8, cfg.table.bodySize - Math.floor(Math.max(0, cols - 3) / 2));
   const BORDERS = borders(cfg);
   const { noHeader } = tableOpts(block, ctx);
   const bodyRows = noHeader ? [block.headers, ...block.rows] : block.rows;
-  const bodyRow = (row, ri, pb) => new TableRow({ children: row.map((c, i) => tcell(c, { width: widths[i], fill: ri % 2 === 0 ? cfg.table.oddFill : cfg.table.evenFill, color: cfg.table.rowColor, size: fontSize, borders: BORDERS, align: block.align[i] || 'left', pageBreakBefore: pb && i === 0 }, cfg, ctx)) });
+  // Body fill: a uniform `table.body.background` wins; otherwise fall back to optional zebra striping.
+  const rowFill = ri => cfg.table.bodyFill || (ri % 2 === 0 ? cfg.table.oddFill : cfg.table.evenFill);
+  const bodyRow = (row, ri, pb) => new TableRow({ children: row.map((c, i) => tcell(c, { width: widths[i], bold: cfg.table.bodyBold, fill: rowFill(ri), color: cfg.table.bodyColor, size: fontSize, borders: BORDERS, align: block.align[i] || 'left', pageBreakBefore: pb && i === 0 }, cfg, ctx)) });
   const rows = [
     ...(noHeader ? [] : [new TableRow({ children: block.headers.map((h, i) => tcell(h, { width: widths[i], bold: cfg.table.headerBold, color: cfg.table.headerColor, fill: cfg.table.headerFill, size: cfg.table.headerSize, borders: BORDERS, align: 'center', pageBreakBefore: pageBreakBefore && i === 0 }, cfg, ctx)) })]),
     ...bodyRows.map((row, ri) => bodyRow(row, ri, pageBreakBefore && noHeader && ri === 0)),

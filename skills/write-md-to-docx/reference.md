@@ -708,14 +708,16 @@ warning), and `from > to` disables numbering (with a warning).
 
 | Key | Type | Default | Description |
 |:----|:-----|:--------|:------------|
-| `table.header.fill` | hex | *(none)* | Header row fill; empty = no fill. |
+| `table.header.background` | hex | *(none)* | Header row background; empty = no fill. (alias: `table.header.fill`) |
 | `table.header.color` | hex | `1F272E` | Header text color. |
 | `table.header.bold` | bool | `true` | Header bold. |
 | `table.header.size` | number (pt) | `10` | Header font size. |
-| `table.row.odd_fill` | hex | `F0F4F8` | Odd‑row fill. |
-| `table.row.even_fill` | hex | `FFFFFF` | Even‑row fill. |
-| `table.row.color` | hex | `1F272E` | Row text color. |
-| `table.row.size` | number (pt) | `10` | Row font size. |
+| `table.body.background` | hex | *(none)* | Uniform body background; empty = no fill. (alias: `table.body.fill`) |
+| `table.body.bold` | bool | `false` | Body cell bold. |
+| `table.body.color` | hex | `1F272E` | Body text color. |
+| `table.body.size` | number (pt) | `10` | Body font size. |
+| `table.row.odd_fill` | hex | *(none)* | Optional zebra striping: odd‑row fill (no default tint). |
+| `table.row.even_fill` | hex | *(none)* | Optional zebra striping: even‑row fill. |
 | `table.border` | hex | `C0C8D0` | Border color. |
 | `table.border_size` | number | `4` | Border thickness (⅛ pt). |
 | `table.cell_padding` | number (cm) | `0.15` | Cell padding. |
@@ -864,13 +866,13 @@ heading:
 
 table:
   header:
-    fill: 2D4E6E
+    background: 2D4E6E
     color: FFFFFF
     bold: true
     size: 10
-  row:
-    odd_fill: F0F4F8
-    even_fill: FFFFFF
+  body:
+    background: ''      # uniform body fill; empty = none
+    bold: false
     color: 1F272E
     size: 10
   border: C0C8D0

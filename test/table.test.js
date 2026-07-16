@@ -65,8 +65,11 @@ test('@table directive: any other block in between orphans the directive', () =>
 });
 
 test('@table header=false: first row renders as a body row (no bold header)', async () => {
-  const withHeader = await documentXml((await convert(TBL)).buffer);
-  const noHeader = await documentXml((await convert(`<!-- @table header=false -->\n${TBL}`)).buffer);
+  // Zebra striping is opt-in (no default tint), so enable it to prove the first row
+  // is restyled with body — not header — styling.
+  const ZEBRA = '<!-- @config\ntable:\n  row:\n    odd_fill: F0F4F8\n-->';
+  const withHeader = await documentXml((await convert(`${ZEBRA}\n${TBL}`)).buffer);
+  const noHeader = await documentXml((await convert(`${ZEBRA}\n<!-- @table header=false -->\n${TBL}`)).buffer);
   // header row is the only bold source in this doc
   assert.ok(/<w:b\/>/.test(withHeader));
   assert.equal(/<w:b\/>/.test(noHeader), false);
