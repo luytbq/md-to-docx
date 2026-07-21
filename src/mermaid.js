@@ -108,7 +108,7 @@ export function renderMermaid(code, scale = 2) {
       warning =
         `mermaid syntax error on line ${parse[1]} of the diagram (the diagram source, not the .md file).\n` +
         `      Likely cause: a node label contains special characters — ( ) [ ] { } : ; # or <br/> — that aren't quoted.\n` +
-        `      Fix: wrap the label text in double quotes, e.g.  A["Apple/Samsung giữ nguyên<br/>(vốn đã đọc)"]\n` +
+        `      Fix: wrap the label text in double quotes, e.g.  A["Node Label<br/>(with text)"]\n` +
         `      Parser said: ${snippet}\n` +
         `      The diagram was inserted as a plain code block instead.`;
     } else {
