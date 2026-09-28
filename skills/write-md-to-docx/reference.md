@@ -387,6 +387,13 @@ and H<!-- @style sub -->2<!-- /style -->O.
 
 Closing tag: `<!-- /style -->` (or `<!-- @/style -->`).
 
+For a plain yellow highlight, the HTML `<mark>` tag is a shorthand for
+`<!-- @style highlight=yellow -->…<!-- /style -->` (markdown inside still parses):
+
+```markdown
+Please review <mark>the expired API key</mark> before deploying.
+```
+
 **Three forms** — pick whichever reads best:
 
 ```markdown

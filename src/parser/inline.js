@@ -10,6 +10,7 @@ import { resolveVar } from '../config.js';
 // The `(?<!\w)…(?!\w)` guards stop `_`/`__` from matching mid-word (e.g. `my_var_name`).
 const INLINE_RE = new RegExp([
   /<!--\s*@style(?<styleArgs>[^>]*?)-->(?<styleBody>[\s\S]*?)<!--\s*@?\/style\s*-->/, // @style…/style
+  /<mark>(?<markBody>[\s\S]*?)<\/mark>/i,               // <mark>highlight</mark>
   /\*\*(?<boldStars>[^*]+)\*\*/,                          // **bold**
   /(?<!\w)__(?<boldUnders>[^_]+)__(?!\w)/,                // __bold__
   /\*(?<italStars>[^*]+)\*/,                              // *italic*
@@ -65,6 +66,8 @@ export function makeRuns(text, base = {}, cfg, ctx = {}) {
     if (g.styleBody != null)
       // Recurse so markdown inside the styled span still parses; the style opts layer onto base.
       runs.push(...makeRuns(g.styleBody, { ...base, ...parseStyleOpts(parseArgs(g.styleArgs), ctx.warnings) }, cfg, ctx));
+    else if (g.markBody != null)
+      runs.push(...makeRuns(g.markBody, { ...base, highlight: 'yellow' }, cfg, ctx));
     else if (bold != null)
       runs.push(new TextRun({ text: substituteVars(bold, ctx), font: cfg.body.font, bold: true, ...base }));
     else if (italic != null)

@@ -33,6 +33,14 @@ const sizeOf = r => {
   const attr = sz.root.find(c => c && c.rootKey === '_attr');
   return attr ? attr.root.val : null;
 };
+const highlightOf = r => {
+  const rpr = r.root.find(c => c && c.rootKey === 'w:rPr');
+  if (!rpr) return null;
+  const hl = rpr.root.find(c => c && c.rootKey === 'w:highlight');
+  if (!hl) return null;
+  const attr = hl.root.find(c => c && c.rootKey === '_attr');
+  return attr ? attr.root.val : null;
+};
 
 // ── parseDirective ───────────────────────────────────────────────────────────
 
@@ -347,4 +355,22 @@ test('convert: skip_on_first_page=N splits into two sections, restarts numbering
 test('convert: skip_on_first_page=N warns and falls back when too few page breaks', async () => {
   const { warnings } = await convert('<!-- @footer center="{page}" skip_on_first_page=2 -->\n# H\n\nbody');
   assert.ok(warnings.some(w => w.type === 'skip-pages'));
+});
+
+test('makeRuns: <mark> highlights the wrapped text yellow', () => {
+  const runs = makeRuns('Please review <mark>the expired API key</mark> before deploying.', {}, cfg);
+  assert.deepEqual(runs.map(runText), ['Please review ', 'the expired API key', ' before deploying.']);
+  assert.deepEqual(runs.map(highlightOf), [null, 'yellow', null]);
+});
+
+test('makeRuns: markdown inside <mark> still parses', () => {
+  const runs = makeRuns('<mark>a **b**</mark>', {}, cfg);
+  assert.deepEqual(runs.map(runText), ['a ', 'b']);
+  assert.deepEqual(runs.map(highlightOf), ['yellow', 'yellow']);
+  assert.equal(isBold(runs[1]), true);
+});
+
+test('parseMarkdown: a line that is only a <mark> span stays a paragraph', () => {
+  const blocks = parseMarkdown('<mark>whole line</mark>');
+  assert.deepEqual(blocks.map(b => b.type), ['paragraph']);
 });

@@ -90,6 +90,7 @@ Keys: `color`, `bg`, `highlight`, `bold`, `italic`, `underline`, `strike`, `sup`
 `size` (pt), `align` (`left`/`center`/`right`, **paragraph-level — only when @style starts the line**).
 Colors: named (`red`, `blue`, `green`, `orange`, `gray`, …) or hex (`#cc0000` / `cc0000`).
 Markdown still parses inside a styled span.
+Shorthand: `<mark>text</mark>` = yellow highlight (same as `highlight=yellow`).
 
 ## Variables
 
