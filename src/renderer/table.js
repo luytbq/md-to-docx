@@ -1,6 +1,8 @@
 import { Paragraph, Table, TableRow, TableCell,
          AlignmentType, BorderStyle, WidthType, ShadingType, VerticalAlign } from 'docx';
 import { makeRuns } from '../parser/inline.js';
+import { parseImage } from '../parser/markdown.js';
+import { imageBlock } from './image.js';
 
 function atype(s) {
   return s === 'center' ? AlignmentType.CENTER : s === 'right' ? AlignmentType.RIGHT : AlignmentType.LEFT;
@@ -18,8 +20,13 @@ function pad(cfg) {
 export function tcell(text, { width, bold = false, italic = false, color, fill, size, borders: b, align = 'left', pageBreakBefore = false } = {}, cfg, ctx = {}) {
   const rOpts = { bold, italics: italic, size: (size ?? cfg.table.bodySize) * 2, font: cfg.body.font };
   if (color) rOpts.color = color;
+  // A cell holding only `![alt](path)` renders the picture, scaled to fit inside the cell padding.
+  const img = parseImage(text.trim());
+  const children = img && width !== undefined
+    ? imageBlock(img, cfg, width - 2 * cfg.table.cellPad, ctx.baseDir ?? '.', ctx.warnings ?? [], ctx, pageBreakBefore)
+    : [new Paragraph({ alignment: atype(align), spacing: cfg.table.spacing, children: makeRuns(text, rOpts, cfg, ctx), pageBreakBefore })];
   const cellOpts = {
-    children: [new Paragraph({ alignment: atype(align), spacing: cfg.table.spacing, children: makeRuns(text, rOpts, cfg, ctx), pageBreakBefore })],
+    children,
     margins: pad(cfg),
     verticalAlign: VerticalAlign.TOP,
     borders: b ?? borders(cfg),
@@ -39,7 +46,8 @@ export function columnWidths(block, CW, { cap = 45, min = 800 } = {}) {
   // Measure the *rendered* width: link markdown collapses to its label (the URL never
   // appears as text — inline.js emits a hyperlink whose visible run is only the label),
   // then emphasis markers are dropped. Links first so `[**x**](url)` measures as `x`.
-  const plainLen = s => s
+  // An image-only cell has no text to measure; it claims the full cap so the picture gets room.
+  const plainLen = s => parseImage(s.trim()) ? cap : s
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/[*_`]/g, '')
     .length;

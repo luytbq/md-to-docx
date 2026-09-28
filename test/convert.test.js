@@ -279,3 +279,19 @@ test('convert: out-of-range to is clamped with a warning', async () => {
   assert.ok(buffer.length > 0);
   assert.equal(warnings.filter(w => /out of range/.test(w.message)).length, 1);
 });
+
+test('convert: an image-only table cell renders the picture inside the cell', async () => {
+  const md = '| A | B |\n|---|---|\n| ![Chart](assets/chart.png) | text |';
+  const { buffer, warnings } = await convert(md, { baseDir: new URL('.', import.meta.url).pathname });
+  assert.deepEqual(warnings, []);
+  const xml = await documentXml(buffer);
+  const cell = xml.match(/<w:tc>(?:(?!<\/w:tc>)[\s\S])*<w:drawing>/);
+  assert.ok(cell, 'expected a <w:drawing> inside a table cell');
+  assert.ok(!xml.includes('![Chart]'), 'image markdown must not leak as literal text');
+});
+
+test('convert: an unreadable image in a table cell warns instead of throwing', async () => {
+  const md = '| A |\n|---|\n| ![x](missing.png) |';
+  const { warnings } = await convert(md, { baseDir: new URL('.', import.meta.url).pathname });
+  assert.equal(warnings.filter(w => w.type === 'image').length, 1);
+});

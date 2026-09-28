@@ -214,7 +214,7 @@ function splitRow(s) {
 
 // Parse a standalone image line, with optional size via `path =WxH` or `{width=W height=H}`.
 // Returns an image block, or null if the line is not an image.
-function parseImage(line) {
+export function parseImage(line) {
   const m = line.match(/^!\[([^\]]*)\]\(([^)]+)\)(?:\{([^}]*)\})?$/);
   if (!m) return null;
   const [, alt, target, attrs] = m;

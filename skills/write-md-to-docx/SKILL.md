@@ -105,7 +105,7 @@ Shorthand: `<mark>text</mark>` = yellow highlight (same as `highlight=yellow`).
 Bold `**x**`, italic `*x*`, inline code `` `x` ``, external `[t](https://…)`, **internal
 `[t](#heading-slug)`** (slug = GitHub-style: lowercase, spaces→`-`, punctuation stripped; Vietnamese
 diacritics kept; duplicate headings get `-1`, `-2`). Tables, fenced code, images `![alt](path)`, `>`
-blockquotes, `---` HR all work.
+blockquotes, `---` HR all work. An image alone in a table cell renders inside the cell (fit to its width).
 
 Watch out — these differ from CommonMark:
 

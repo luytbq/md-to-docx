@@ -178,7 +178,7 @@ export async function buildDocument(blocks, cfg, { baseDir, keepMermaidText = fa
       anchorMap[slug] = b.anchorId;
     }
   }
-  const ctx = { anchorMap, warnings, vars };
+  const ctx = { anchorMap, warnings, vars, baseDir };
 
   // Heading numbering (native Word multilevel). `num.enabled` gates everything; a numbered
   // heading at level L gets `numbering: { reference: 'heading', level: L - num.from }`.

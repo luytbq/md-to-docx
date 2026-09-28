@@ -244,6 +244,10 @@ graph LR
 - With `image.caption: true` (default), the alt text renders as an italic,
   centered caption below the image. An unreadable image degrades to an empty
   paragraph plus an `image` warning.
+- An image can sit in a table cell when it is the cell's only content
+  (`| ![Caption](shot.png) | … |`). It is scaled down to fit the cell, and the
+  column claims extra width. An image mixed with text in the same cell stays
+  literal text.
 
 ### 2.10 Horizontal rules
 
