@@ -79,6 +79,7 @@ Levels `H1`–`H6` map to Word heading styles (configurable per level — see
 | `**bold**` or `__bold__` | **bold** |
 | `*italic*` or `_italic_` | *italic* |
 | `` `inline code` `` | monospace run (styled via [`inline_code`](#inline_code)) |
+| `<mark>text</mark>` | yellow highlight (shorthand for [`@style highlight=yellow`](#33-style--inline-run-styling)) |
 
 `_`/`__` are not matched mid‑word, so `my_var_name` stays literal. Markers may
 nest, e.g. `**bold with `code` inside**`.
@@ -162,6 +163,16 @@ A right-aligned, red note
 - Cells support inline markdown, `<br>` ([§2.4](#24-line-breaks)), internal
   links, and `@style` ([§3.3](#33-style--inline-run-styling)). Escape a literal
   pipe as `\|`.
+- A cell whose only content is an image renders the picture inside the cell,
+  scaled to the cell width ([§2.9](#29-images)). Handy for screenshots side by
+  side:
+
+  ```markdown
+  | Before | After |
+  |---|---|
+  | ![Before](shots/before.png) | ![After](shots/after.png) |
+  ```
+
 - Column widths are auto‑sized from content.
 - **Per‑table options** — an `<!-- @table … -->` comment on the line(s) right
   above a table (only blank lines may sit in between) applies to that table
