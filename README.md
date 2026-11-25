@@ -35,6 +35,7 @@ network access.
 |:---------|:------------|
 | `MMDC_PATH` | Use a specific `mmdc` binary instead of the bundled one. |
 | `CHROME_PATH` | Use a system Chrome/Chromium instead of the bundled one. |
+| `MD_TO_DOCX_NO_UPDATE_CHECK=1` | Disable the CLI's new-version notice. |
 | `PUPPETEER_SKIP_DOWNLOAD=true` | Set during `npm install` to skip the Chromium download (mermaid then falls back to code blocks). |
 
 ## Installation
@@ -65,6 +66,14 @@ md-to-docx input.md --split-tall-mermaid
 | `-o`, `--output` | Output `.docx` path. Default: same directory and filename as the input. |
 | `--keep-mermaid-text` | Append the mermaid source after each rendered diagram. |
 | `--split-tall-mermaid` | Slice a diagram taller than one page into page‑fitting images (keeps font size). |
+| `--no-update-check` | Skip the check for a newer published version. |
+
+After a successful conversion the CLI prints an `Update available: …` line when
+a newer version is on npm. The registry is queried at most once a day (cached in
+`~/.cache/md-to-docx/`, or `$XDG_CACHE_HOME`), in parallel with the conversion and
+with a 1.5 s timeout. The check is also skipped when `CI`,
+`MD_TO_DOCX_NO_UPDATE_CHECK` or `NO_UPDATE_NOTIFIER` is set. The programmatic API
+never performs it.
 
 ### Programmatic API
 
